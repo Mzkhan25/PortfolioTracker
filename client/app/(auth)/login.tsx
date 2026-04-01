@@ -16,7 +16,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, authError } = useAuth();
+
+  const displayError = error || authError;
 
   const handleLogin = async () => {
     if (!password.trim()) {
@@ -61,7 +63,7 @@ export default function LoginScreen() {
               onSubmitEditing={handleLogin}
             />
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {displayError ? <Text style={styles.error}>{displayError}</Text> : null}
 
             <Pressable
               style={[styles.button, loading && styles.buttonDisabled]}

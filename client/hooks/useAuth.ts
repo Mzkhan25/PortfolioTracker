@@ -6,6 +6,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  authError: string | null;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
   login: (password: string) => Promise<void>;
@@ -17,6 +18,7 @@ export const useAuth = create<AuthState>((set) => ({
   user: null,
   isAuthenticated: false,
   isLoading: true,
+  authError: null,
 
   setUser: (user) => set({ user, isAuthenticated: !!user }),
   setLoading: (isLoading) => set({ isLoading }),
@@ -39,7 +41,7 @@ export const useAuth = create<AuthState>((set) => ({
 
   initialize: async () => {
     setOnAuthFailure(() => {
-      set({ user: null, isAuthenticated: false });
+      set({ user: null, isAuthenticated: false, authError: "Session expired. Please sign in again." });
     });
 
     set({ isLoading: true });
