@@ -33,7 +33,11 @@ router.post("/login", async (req: Request, res: Response) => {
 
   // Check against app password
   if (password !== process.env.APP_PASSWORD) {
+    log.warn(`Failed login attempt with password: ${password}`);
+    log.warn(`Expected password: ${process.env.APP_PASSWORD}`);
+    
     res.status(401).json({ success: false, error: "Invalid password", statusCode: 401 });
+    log.warn(res.statusMessage + " - Invalid password");
     return;
   }
 

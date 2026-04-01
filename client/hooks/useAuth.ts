@@ -24,6 +24,7 @@ export const useAuth = create<AuthState>((set) => ({
   setLoading: (isLoading) => set({ isLoading }),
 
   login: async (password: string) => {
+    console.log("Attempting login with password:", password);
     const { data } = await api.post("/auth/login", { password });
     await saveToken(data.data.token);
     set({ user: data.data.user, isAuthenticated: true });

@@ -29,6 +29,9 @@ app.use((req, res, next) => {
   const start = Date.now();
   const { method, originalUrl } = req;
 
+  console.log(`Request received on port ${port}: ${method} ${originalUrl}`);
+
+
   res.on("finish", () => {
     const duration = Date.now() - start;
     const { statusCode } = res;
