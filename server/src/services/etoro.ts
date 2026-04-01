@@ -1,0 +1,255 @@
+import axios, { AxiosInstance } from "axios";
+import { v4 as uuidv4 } from "uuid";
+import type {
+  PortfolioOverview,
+  Position,
+  Instrument,
+  Rate,
+  Candle,
+  CandlePeriod,
+} from "@portfolio-tracker/shared";
+
+const BASE_URL = process.env.ETORO_API_BASE_URL || "https://public-api.etoro.com/api/v1";
+
+// Map CandlePeriod to eToro's interval format
+const CANDLE_INTERVAL_MAP: Record<CandlePeriod, { interval: string; count: number }> = {
+  "1D": { interval: "OneDay", count: 1 },
+  "1W": { interval: "OneDay", count: 7 },
+  "1M": { interval: "OneDay", count: 30 },
+  "3M": { interval: "OneWeek", count: 13 },
+  "1Y": { interval: "OneWeek", count: 52 },
+};
+
+export class EtoroService {
+  private client: AxiosInstance;
+
+  constructor(apiKey: string, userKey: string) {
+    this.client = axios.create({
+      baseURL: BASE_URL,
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "x-user-key": userKey,
+      },
+    });
+
+    // Inject unique x-request-id on every request
+    this.client.interceptors.request.use((config) => {
+      config.headers["x-request-id"] = uuidv4();
+      return config;
+    });
+  }
+
+  /**
+   * Validate that the provided keys work by fetching user identity.
+   * Returns the eToro GCID (global client ID).
+   */
+  async validateKeys(): Promise<{ gcid: number; username: string }> {
+    const response = await this.client.get("/me");
+    return response.data;
+  }
+
+  /**
+   * Get user profile data.
+   */
+  async getUserProfile(username: string): Promise<{
+    userId: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+  }> {
+    const response = await this.client.get(`/user-info/people/${username}`);
+    const data = response.data;
+    return {
+      userId: String(data.cid ?? data.gcid ?? data.userId),
+      username: data.username ?? username,
+      displayName: data.displayName ?? data.username ?? username,
+      avatarUrl: data.avatarUrl ?? data.mediaUrl ?? null,
+    };
+  }
+
+  /**
+   * Get portfolio PnL and positions from real account.
+   */
+  async getPortfolioPnl(): Promise<{
+    overview: PortfolioOverview;
+    positions: Position[];
+    rawCredit: number;
+  }> {
+    const response = await this.client.get("/trading/info/real/pnl");
+    const portfolio = response.data.clientPortfolio;
+
+    const rawPositions = portfolio.positions || [];
+    const totalInvested = rawPositions.reduce(
+      (sum: number, p: any) => sum + (p.amount || p.initialAmountInDollars || 0),
+      0
+    );
+    const totalPnl = rawPositions.reduce(
+      (sum: number, p: any) => sum + (p.pnL || 0),
+      0
+    );
+    const totalValue = totalInvested + totalPnl + (portfolio.credit || 0);
+
+    const positions: Position[] = rawPositions.map((p: any) => {
+      const invested = p.amount || p.initialAmountInDollars || 0;
+      const pnl = p.pnL || 0;
+      const pnlPercent = invested > 0 ? (pnl / invested) * 100 : 0;
+      const currentValue = invested + pnl;
+      const allocation = totalValue > 0 ? (currentValue / totalValue) * 100 : 0;
+
+      return {
+        id: String(p.positionID),
+        instrumentId: String(p.instrumentID),
+        instrumentName: "", // Enriched later via instruments endpoint
+        ticker: "",
+        amount: invested,
+        units: p.units || 0,
+        openRate: p.openRate || 0,
+        currentRate: p.closeRate || 0,
+        unrealizedPnl: pnl,
+        unrealizedPnlPercent: pnlPercent,
+        allocationPercent: allocation,
+        openDate: p.openDateTime || "",
+        leverage: p.leverage || 1,
+        isBuy: p.isBuy ?? true,
+        tags: [],
+      };
+    });
+
+    const overview: PortfolioOverview = {
+      totalValue,
+      equity: totalValue,
+      availableCash: portfolio.credit || 0,
+      unrealizedPnl: totalPnl,
+      unrealizedPnlPercent: totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0,
+      dailyChange: 0, // Not directly available from this endpoint
+      dailyChangePercent: 0,
+    };
+
+    return { overview, positions, rawCredit: portfolio.credit || 0 };
+  }
+
+  /**
+   * Get trade history for real account.
+   */
+  async getTradeHistory(
+    minDate: string,
+    page = 1,
+    pageSize = 20
+  ): Promise<{
+    trades: any[];
+    total: number;
+  }> {
+    const response = await this.client.get("/trading/info/trade/history", {
+      params: { minDate, page, pageSize },
+    });
+
+    const trades = Array.isArray(response.data) ? response.data : response.data.trades || [];
+
+    return {
+      trades: trades.map((t: any) => ({
+        id: String(t.positionId || t.orderId),
+        instrumentId: String(t.instrumentId),
+        instrumentName: "",
+        ticker: "",
+        isBuy: t.isBuy ?? true,
+        openRate: t.openRate || 0,
+        closeRate: t.closeRate || 0,
+        openDate: t.openTimestamp || "",
+        closeDate: t.closeTimestamp || "",
+        investment: t.investment || t.initialInvestment || 0,
+        units: t.units || 0,
+        leverage: t.leverage || 1,
+        netProfit: t.netProfit || 0,
+        fees: t.fees || 0,
+        stopLossRate: t.stopLossRate || 0,
+        takeProfitRate: t.takeProfitRate || 0,
+      })),
+      total: trades.length,
+    };
+  }
+
+  /**
+   * Search instruments.
+   */
+  async searchInstruments(query?: string): Promise<Instrument[]> {
+    const params = query ? { internalSymbolFull: query } : {};
+    const response = await this.client.get("/market-data/search", { params });
+
+    const instruments = Array.isArray(response.data)
+      ? response.data
+      : response.data.instruments || [];
+
+    return instruments.map((i: any) => ({
+      instrumentId: String(i.instrumentId ?? i.InstrumentID),
+      name: i.instrumentDisplayName ?? i.name ?? "",
+      ticker: i.symbolFull ?? i.ticker ?? "",
+      type: i.instrumentType ?? i.type ?? "Stocks",
+      exchangeId: String(i.exchangeId ?? i.ExchangeID ?? ""),
+      imageUrl: i.imageUrl ?? i.Images?.[0]?.Uri ?? null,
+    }));
+  }
+
+  /**
+   * Get instrument metadata (list of all instruments or filtered).
+   */
+  async getInstruments(): Promise<Instrument[]> {
+    const response = await this.client.get("/market-data/instruments");
+
+    const instruments = Array.isArray(response.data)
+      ? response.data
+      : response.data.instruments || [];
+
+    return instruments.map((i: any) => ({
+      instrumentId: String(i.instrumentId ?? i.InstrumentID),
+      name: i.instrumentDisplayName ?? i.name ?? "",
+      ticker: i.symbolFull ?? i.ticker ?? "",
+      type: i.instrumentType ?? i.type ?? "Stocks",
+      exchangeId: String(i.exchangeId ?? i.ExchangeID ?? ""),
+      imageUrl: i.imageUrl ?? i.Images?.[0]?.Uri ?? null,
+    }));
+  }
+
+  /**
+   * Get current market rates for given instruments.
+   */
+  async getRates(instrumentIds: string[]): Promise<Rate[]> {
+    const response = await this.client.get("/market-data/instruments/rates", {
+      params: { instrumentIds: instrumentIds.join(",") },
+    });
+
+    const rates = Array.isArray(response.data) ? response.data : response.data.rates || [];
+
+    return rates.map((r: any) => ({
+      instrumentId: String(r.instrumentId ?? r.InstrumentID),
+      bid: r.bid ?? r.Bid ?? 0,
+      ask: r.ask ?? r.Ask ?? 0,
+      lastPrice: r.lastPrice ?? r.LastPrice ?? ((r.bid ?? 0) + (r.ask ?? 0)) / 2,
+      dailyChange: r.dailyChange ?? 0,
+      dailyChangePercent: r.dailyChangePercent ?? 0,
+      timestamp: r.timestamp ?? new Date().toISOString(),
+    }));
+  }
+
+  /**
+   * Get historical candle data (OHLCV).
+   */
+  async getCandles(instrumentId: string, period: CandlePeriod): Promise<Candle[]> {
+    const config = CANDLE_INTERVAL_MAP[period] || CANDLE_INTERVAL_MAP["1M"];
+    // eToro candle path: /market-data/instruments/{id}/history/candles/{direction}/{interval}/{count}
+    const response = await this.client.get(
+      `/market-data/instruments/${instrumentId}/history/candles/asc/${config.interval}/${config.count}`
+    );
+
+    const candles = Array.isArray(response.data) ? response.data : response.data.candles || [];
+
+    return candles.map((c: any) => ({
+      timestamp: c.dateTime ?? c.timestamp ?? "",
+      open: c.open ?? c.Open ?? 0,
+      high: c.high ?? c.High ?? 0,
+      low: c.low ?? c.Low ?? 0,
+      close: c.close ?? c.Close ?? 0,
+      volume: c.volume ?? c.Volume ?? 0,
+    }));
+  }
+}

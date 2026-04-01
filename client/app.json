@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "PortfolioTracker",
+    "slug": "portfolio-tracker",
+    "version": "1.0.0",
+    "scheme": "portfolio-tracker",
+    "platforms": ["ios", "android", "web"],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#0f172a"
+    },
+    "ios": {
+      "bundleIdentifier": "com.portfoliotracker.app",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.portfoliotracker.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0f172a"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": ["expo-router", "expo-secure-store"]
+  }
+}
