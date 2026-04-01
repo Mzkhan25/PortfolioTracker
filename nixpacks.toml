@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build:shared", "npm run build:server"]
+
+[start]
+cmd = "cd server && node dist/index.js"

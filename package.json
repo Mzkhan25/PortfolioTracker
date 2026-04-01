@@ -12,6 +12,7 @@
     "dev:client": "npm run dev --workspace=client",
     "build:shared": "npm run build --workspace=shared",
     "build:server": "npm run build --workspace=server",
-    "build": "npm run build:shared && npm run build:server"
+    "build": "npm run build:shared && npm run build:server",
+    "start": "cd server && node dist/index.js"
   }
 }
