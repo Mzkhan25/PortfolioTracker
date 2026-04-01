@@ -8,7 +8,7 @@ interface AuthState {
   isLoading: boolean;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
-  login: (apiKey: string, userKey: string) => Promise<void>;
+  login: (password: string) => Promise<void>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
 }
@@ -21,8 +21,8 @@ export const useAuth = create<AuthState>((set) => ({
   setUser: (user) => set({ user, isAuthenticated: !!user }),
   setLoading: (isLoading) => set({ isLoading }),
 
-  login: async (apiKey: string, userKey: string) => {
-    const { data } = await api.post("/auth/login", { apiKey, userKey });
+  login: async (password: string) => {
+    const { data } = await api.post("/auth/login", { password });
     await saveToken(data.data.token);
     set({ user: data.data.user, isAuthenticated: true });
   },
@@ -31,14 +31,13 @@ export const useAuth = create<AuthState>((set) => ({
     try {
       await api.post("/auth/logout");
     } catch {
-      // Best effort — clear local state regardless
+      // Best effort
     }
     await clearToken();
     set({ user: null, isAuthenticated: false });
   },
 
   initialize: async () => {
-    // Register callback so API interceptor can clear auth on failed refresh
     setOnAuthFailure(() => {
       set({ user: null, isAuthenticated: false });
     });
@@ -51,18 +50,15 @@ export const useAuth = create<AuthState>((set) => ({
         return;
       }
 
-      // Validate token by fetching user profile
       const { data } = await api.get("/auth/me");
       set({ user: data.data, isAuthenticated: true, isLoading: false });
     } catch {
-      // Token invalid or expired — try refresh
       try {
         const { data: refreshData } = await api.post("/auth/refresh");
         await saveToken(refreshData.data.token);
         const { data: meData } = await api.get("/auth/me");
         set({ user: meData.data, isAuthenticated: true, isLoading: false });
       } catch {
-        // Refresh also failed — clear everything
         await clearToken();
         set({ user: null, isAuthenticated: false, isLoading: false });
       }

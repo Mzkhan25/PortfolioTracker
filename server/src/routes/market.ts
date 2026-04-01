@@ -1,12 +1,12 @@
 import { Router, Request, Response } from "express";
-import { authWithKeysMiddleware } from "../middleware/auth.js";
+import { authMiddleware } from "../middleware/auth.js";
 import { EtoroService } from "../services/etoro.js";
 import { getCached, setCache, buildCacheKey } from "../services/cache.js";
 import type { CandlePeriod } from "@portfolio-tracker/shared";
 
 const router = Router();
 
-router.use(authWithKeysMiddleware);
+router.use(authMiddleware);
 
 router.get("/instruments", async (req: Request, res: Response) => {
   const query = req.query.query ? String(req.query.query) : undefined;
@@ -21,7 +21,7 @@ router.get("/instruments", async (req: Request, res: Response) => {
   }
 
   try {
-    const etoro = new EtoroService(req.etoroKeys!.apiKey, req.etoroKeys!.userKey);
+    const etoro = new EtoroService();
     const instruments = query
       ? await etoro.searchInstruments(query)
       : await etoro.getInstruments();
@@ -58,7 +58,7 @@ router.get("/rates", async (req: Request, res: Response) => {
   }
 
   try {
-    const etoro = new EtoroService(req.etoroKeys!.apiKey, req.etoroKeys!.userKey);
+    const etoro = new EtoroService();
     const rates = await etoro.getRates(instrumentIds);
 
     setCache(cacheKey, rates, 30);
@@ -83,7 +83,7 @@ router.get("/candles/:instrumentId", async (req: Request, res: Response) => {
   }
 
   try {
-    const etoro = new EtoroService(req.etoroKeys!.apiKey, req.etoroKeys!.userKey);
+    const etoro = new EtoroService();
     const candles = await etoro.getCandles(instrumentId, period);
 
     setCache(cacheKey, candles, 60);

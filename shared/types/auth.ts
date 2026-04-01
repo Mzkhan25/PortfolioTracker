@@ -16,8 +16,7 @@ export interface Session {
 }
 
 export interface LoginRequest {
-  apiKey: string;
-  userKey: string;
+  password: string;
 }
 
 export interface AuthResponse {

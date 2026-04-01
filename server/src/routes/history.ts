@@ -1,11 +1,11 @@
 import { Router, Request, Response } from "express";
-import { authWithKeysMiddleware } from "../middleware/auth.js";
+import { authMiddleware } from "../middleware/auth.js";
 import { EtoroService } from "../services/etoro.js";
 import { getCached, setCache, buildCacheKey } from "../services/cache.js";
 
 const router = Router();
 
-router.use(authWithKeysMiddleware);
+router.use(authMiddleware);
 
 router.get("/trades", async (req: Request, res: Response) => {
   const userId = req.auth!.userId;
@@ -29,7 +29,7 @@ router.get("/trades", async (req: Request, res: Response) => {
   }
 
   try {
-    const etoro = new EtoroService(req.etoroKeys!.apiKey, req.etoroKeys!.userKey);
+    const etoro = new EtoroService();
     const result = await etoro.getTradeHistory(minDate, page, pageSize);
 
     // Enrich with instrument names
@@ -71,7 +71,7 @@ router.get("/trades/:id", async (req: Request, res: Response) => {
   const minDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   try {
-    const etoro = new EtoroService(req.etoroKeys!.apiKey, req.etoroKeys!.userKey);
+    const etoro = new EtoroService();
     const result = await etoro.getTradeHistory(minDate, 1, 100);
     const trade = result.trades.find((t: any) => t.id === tradeId);
 

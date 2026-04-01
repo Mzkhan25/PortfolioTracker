@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { authWithKeysMiddleware } from "../middleware/auth.js";
+import { authMiddleware } from "../middleware/auth.js";
 import { EtoroService } from "../services/etoro.js";
 import { getCached, setCache, buildCacheKey } from "../services/cache.js";
 import { db } from "../db/index.js";
@@ -9,7 +9,7 @@ import type { PortfolioOverview, Position } from "@portfolio-tracker/shared";
 
 const router = Router();
 
-router.use(authWithKeysMiddleware);
+router.use(authMiddleware);
 
 router.get("/overview", async (req: Request, res: Response) => {
   const userId = req.auth!.userId;
@@ -25,7 +25,7 @@ router.get("/overview", async (req: Request, res: Response) => {
   }
 
   try {
-    const etoro = new EtoroService(req.etoroKeys!.apiKey, req.etoroKeys!.userKey);
+    const etoro = new EtoroService();
     const { overview, positions, rawCredit } = await etoro.getPortfolioPnl();
 
     // Save snapshot to DB
@@ -111,7 +111,7 @@ router.get("/positions", async (req: Request, res: Response) => {
   }
 
   try {
-    const etoro = new EtoroService(req.etoroKeys!.apiKey, req.etoroKeys!.userKey);
+    const etoro = new EtoroService();
     const { positions } = await etoro.getPortfolioPnl();
 
     // Enrich with instrument names
@@ -187,7 +187,7 @@ router.get("/positions/:id", async (req: Request, res: Response) => {
   const positionId = String(req.params.id);
 
   try {
-    const etoro = new EtoroService(req.etoroKeys!.apiKey, req.etoroKeys!.userKey);
+    const etoro = new EtoroService();
     const { positions } = await etoro.getPortfolioPnl();
     const position = positions.find((p) => p.id === positionId);
 

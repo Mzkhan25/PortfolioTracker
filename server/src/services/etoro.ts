@@ -23,7 +23,13 @@ const CANDLE_INTERVAL_MAP: Record<CandlePeriod, { interval: string; count: numbe
 export class EtoroService {
   private client: AxiosInstance;
 
-  constructor(apiKey: string, userKey: string) {
+  constructor() {
+    const apiKey = process.env.ETORO_API_KEY;
+    const userKey = process.env.ETORO_USER_KEY;
+    if (!apiKey || !userKey) {
+      throw new Error("ETORO_API_KEY and ETORO_USER_KEY environment variables are required");
+    }
+
     this.client = axios.create({
       baseURL: BASE_URL,
       headers: {

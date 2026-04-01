@@ -3,22 +3,20 @@ import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import { users, sessions } from "../db/schema.js";
-import { encrypt } from "../services/encryption.js";
+import { users } from "../db/schema.js";
 import { EtoroService } from "../services/etoro.js";
 import { authMiddleware, AuthPayload } from "../middleware/auth.js";
 
 const router = Router();
 
 const loginSchema = z.object({
-  apiKey: z.string().min(1, "API key is required"),
-  userKey: z.string().min(1, "User key is required"),
+  password: z.string().min(1, "Password is required"),
 });
 
-function signJwt(userId: string, sessionId: string): string {
-  const expiresIn = (process.env.JWT_EXPIRES_IN || "15m") as jwt.SignOptions["expiresIn"];
+function signJwt(userId: string): string {
+  const expiresIn = (process.env.JWT_EXPIRES_IN || "7d") as jwt.SignOptions["expiresIn"];
   return jwt.sign(
-    { userId, sessionId } satisfies AuthPayload,
+    { userId, sessionId: "single-user" } satisfies AuthPayload,
     process.env.JWT_SECRET!,
     { expiresIn }
   );
@@ -27,22 +25,24 @@ function signJwt(userId: string, sessionId: string): string {
 router.post("/login", async (req: Request, res: Response) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({
-      success: false,
-      error: "Invalid request: apiKey and userKey are required",
-      statusCode: 400,
-    });
+    res.status(400).json({ success: false, error: "Password is required", statusCode: 400 });
     return;
   }
 
-  const { apiKey, userKey } = parsed.data;
+  const { password } = parsed.data;
+
+  // Check against app password
+  if (password !== process.env.APP_PASSWORD) {
+    res.status(401).json({ success: false, error: "Invalid password", statusCode: 401 });
+    return;
+  }
 
   try {
-    // Validate keys by fetching user identity from eToro
-    const etoro = new EtoroService(apiKey, userKey);
+    // Validate eToro keys and get user identity
+    const etoro = new EtoroService();
     const identity = await etoro.validateKeys();
 
-    // Try to get profile info
+    // Upsert user
     let profileData = {
       userId: String(identity.gcid),
       username: identity.username || String(identity.gcid),
@@ -53,10 +53,9 @@ router.post("/login", async (req: Request, res: Response) => {
     try {
       profileData = await etoro.getUserProfile(identity.username);
     } catch {
-      // Profile fetch is best-effort; identity is sufficient
+      // Best effort
     }
 
-    // Upsert user
     const [user] = await db
       .insert(users)
       .values({
@@ -76,35 +75,12 @@ router.post("/login", async (req: Request, res: Response) => {
       })
       .returning();
 
-    // Create session with encrypted eToro keys
-    const sessionExpiry = new Date();
-    sessionExpiry.setDate(sessionExpiry.getDate() + 30); // 30-day session (keys don't expire)
-
-    const tempToken = signJwt(user.id, "pending");
-
-    const [session] = await db
-      .insert(sessions)
-      .values({
-        userId: user.id,
-        jwtToken: tempToken,
-        etoroApiKey: encrypt(apiKey),
-        etoroUserKey: encrypt(userKey),
-        expiresAt: sessionExpiry,
-      })
-      .returning();
-
-    // Re-sign JWT with actual session ID
-    const finalToken = signJwt(user.id, session.id);
-
-    await db
-      .update(sessions)
-      .set({ jwtToken: finalToken })
-      .where(eq(sessions.id, session.id));
+    const token = signJwt(user.id);
 
     res.json({
       success: true,
       data: {
-        token: finalToken,
+        token,
         user: {
           id: user.id,
           etoroUserId: user.etoroUserId,
@@ -117,9 +93,8 @@ router.post("/login", async (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Authentication failed";
-    const status = message.includes("401") ? 401 : 500;
-    res.status(status).json({ success: false, error: "Invalid eToro API keys", statusCode: status });
+    const message = err instanceof Error ? err.message : "Login failed";
+    res.status(500).json({ success: false, error: message, statusCode: 500 });
   }
 });
 
@@ -133,48 +108,19 @@ router.post("/refresh", async (req: Request, res: Response) => {
   const token = header.slice(7);
 
   try {
-    // Verify signature but ignore expiration
     const payload = jwt.verify(token, process.env.JWT_SECRET!, {
       ignoreExpiration: true,
     }) as AuthPayload;
 
-    const [session] = await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.id, payload.sessionId))
-      .limit(1);
-
-    if (!session) {
-      res.status(401).json({ success: false, error: "Session not found", statusCode: 401 });
-      return;
-    }
-
-    if (new Date(session.expiresAt) < new Date()) {
-      await db.delete(sessions).where(eq(sessions.id, session.id));
-      res.status(401).json({ success: false, error: "Session expired, please login again", statusCode: 401 });
-      return;
-    }
-
-    const newToken = signJwt(payload.userId, session.id);
-
-    await db
-      .update(sessions)
-      .set({ jwtToken: newToken })
-      .where(eq(sessions.id, session.id));
-
+    const newToken = signJwt(payload.userId);
     res.json({ success: true, data: { token: newToken } });
   } catch {
     res.status(401).json({ success: false, error: "Invalid token", statusCode: 401 });
   }
 });
 
-router.post("/logout", authMiddleware, async (req: Request, res: Response) => {
-  try {
-    await db.delete(sessions).where(eq(sessions.id, req.auth!.sessionId));
-    res.json({ success: true, data: { message: "Logged out" } });
-  } catch {
-    res.status(500).json({ success: false, error: "Failed to logout", statusCode: 500 });
-  }
+router.post("/logout", (_req: Request, res: Response) => {
+  res.json({ success: true, data: { message: "Logged out" } });
 });
 
 router.get("/me", authMiddleware, async (req: Request, res: Response) => {
