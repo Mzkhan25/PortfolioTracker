@@ -24,6 +24,23 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Request/Response logger
+app.use((req, res, next) => {
+  const start = Date.now();
+  const { method, originalUrl } = req;
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    const { statusCode } = res;
+    const level = statusCode >= 500 ? "ERROR" : statusCode >= 400 ? "WARN" : "INFO";
+    console.log(
+      `[${level}] ${new Date().toISOString()} ${method} ${originalUrl} → ${statusCode} (${duration}ms)`
+    );
+  });
+
+  next();
+});
+
 // Rate limiting on auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
