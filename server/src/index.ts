@@ -27,7 +27,7 @@ app.use(express.json());
 // Rate limiting on auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
+  max: 100, // generous for single-user mode
   message: { success: false, error: "Too many requests, please try again later", statusCode: 429 },
 });
 app.use("/api/auth", authLimiter);
