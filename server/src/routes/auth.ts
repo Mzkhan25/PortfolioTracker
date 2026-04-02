@@ -33,33 +33,40 @@ router.post("/login", async (req: Request, res: Response) => {
 
   // Check against app password
   if (password !== process.env.APP_PASSWORD) {
-    log.warn(`Failed login attempt with password: ${password}`);
-    log.warn(`Expected password: ${process.env.APP_PASSWORD}`);
-    
+    console.warn(`Failed login attempt`);
     res.status(401).json({ success: false, error: "Invalid password", statusCode: 401 });
-    log.warn(res.statusMessage + " - Invalid password");
     return;
   }
 
   try {
-    // Validate eToro keys and get user identity
-    const etoro = new EtoroService();
-    const identity = await etoro.validateKeys();
-
-    // Upsert user
+    // Try to enrich with eToro profile (best-effort, not required for login)
     let profileData = {
-      userId: String(identity.gcid),
-      username: identity.username || String(identity.gcid),
-      displayName: identity.username || String(identity.gcid),
+      userId: "single-user",
+      username: "user",
+      displayName: "Portfolio User",
       avatarUrl: null as string | null,
     };
 
     try {
-      profileData = await etoro.getUserProfile(identity.username);
-    } catch {
-      // Best effort
+      const etoro = new EtoroService();
+      const identity = await etoro.validateKeys();
+      profileData = {
+        userId: String(identity.gcid),
+        username: identity.username || String(identity.gcid),
+        displayName: identity.username || String(identity.gcid),
+        avatarUrl: null,
+      };
+
+      try {
+        profileData = await etoro.getUserProfile(identity.username);
+      } catch {
+        // Best effort for full profile
+      }
+    } catch (etoroErr) {
+      console.warn("eToro API unavailable during login, using default profile:", etoroErr instanceof Error ? etoroErr.message : etoroErr);
     }
 
+    // Upsert user
     const [user] = await db
       .insert(users)
       .values({

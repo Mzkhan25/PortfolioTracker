@@ -5,7 +5,7 @@ import { EtoroService } from "../services/etoro.js";
 import { getCached, setCache, buildCacheKey } from "../services/cache.js";
 import { db } from "../db/index.js";
 import { portfolioSnapshots, positionTags } from "../db/schema.js";
-import type { PortfolioOverview, Position } from "@portfolio-tracker/shared";
+import type { PortfolioOverview } from "@portfolio-tracker/shared";
 
 const router = Router();
 
@@ -93,8 +93,22 @@ router.get("/overview", async (req: Request, res: Response) => {
       return;
     }
 
-    const message = err instanceof Error ? err.message : "Failed to fetch portfolio";
-    res.status(502).json({ success: false, error: message, statusCode: 502 });
+    // No snapshot available — return empty overview so the app still renders
+    console.warn("eToro API unavailable and no snapshots exist, returning empty overview");
+    res.json({
+      success: true,
+      data: {
+        totalValue: 0,
+        equity: 0,
+        availableCash: 0,
+        unrealizedPnl: 0,
+        unrealizedPnlPercent: 0,
+        dailyChange: 0,
+        dailyChangePercent: 0,
+      },
+      cached: true,
+      empty: true,
+    });
   }
 });
 
@@ -178,8 +192,9 @@ router.get("/positions", async (req: Request, res: Response) => {
       return;
     }
 
-    const message = err instanceof Error ? err.message : "Failed to fetch positions";
-    res.status(502).json({ success: false, error: message, statusCode: 502 });
+    // No snapshot available — return empty positions
+    console.warn("eToro API unavailable and no snapshots exist, returning empty positions");
+    res.json({ success: true, data: [], cached: true, empty: true });
   }
 });
 
@@ -199,7 +214,7 @@ router.get("/positions/:id", async (req: Request, res: Response) => {
     res.json({ success: true, data: position });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch position";
-    res.status(502).json({ success: false, error: message, statusCode: 502 });
+    res.status(502).json({ success: false, error: message, statusCode: 502, empty: true });
   }
 });
 

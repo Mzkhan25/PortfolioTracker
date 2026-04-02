@@ -29,8 +29,8 @@ router.get("/instruments", async (req: Request, res: Response) => {
     setCache(cacheKey, instruments, 300);
     res.json({ success: true, data: instruments });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to fetch instruments";
-    res.status(502).json({ success: false, error: message, statusCode: 502 });
+    console.warn("eToro API unavailable for instruments:", err instanceof Error ? err.message : err);
+    res.json({ success: true, data: [], cached: true, empty: true });
   }
 });
 
@@ -64,8 +64,8 @@ router.get("/rates", async (req: Request, res: Response) => {
     setCache(cacheKey, rates, 30);
     res.json({ success: true, data: rates });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to fetch rates";
-    res.status(502).json({ success: false, error: message, statusCode: 502 });
+    console.warn("eToro API unavailable for rates:", err instanceof Error ? err.message : err);
+    res.json({ success: true, data: [], cached: true, empty: true });
   }
 });
 
@@ -89,8 +89,8 @@ router.get("/candles/:instrumentId", async (req: Request, res: Response) => {
     setCache(cacheKey, candles, 60);
     res.json({ success: true, data: candles });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to fetch candles";
-    res.status(502).json({ success: false, error: message, statusCode: 502 });
+    console.warn("eToro API unavailable for candles:", err instanceof Error ? err.message : err);
+    res.json({ success: true, data: [], cached: true, empty: true });
   }
 });
 

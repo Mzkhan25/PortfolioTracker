@@ -61,8 +61,13 @@ router.get("/trades", async (req: Request, res: Response) => {
     setCache(cacheKey, response, 120);
     res.json({ success: true, data: response });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to fetch trade history";
-    res.status(502).json({ success: false, error: message, statusCode: 502 });
+    console.warn("eToro API unavailable for trade history:", err instanceof Error ? err.message : err);
+    res.json({
+      success: true,
+      data: { items: [], total: 0, page, limit: pageSize, totalPages: 0 },
+      cached: true,
+      empty: true,
+    });
   }
 });
 
@@ -83,7 +88,7 @@ router.get("/trades/:id", async (req: Request, res: Response) => {
     res.json({ success: true, data: trade });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch trade";
-    res.status(502).json({ success: false, error: message, statusCode: 502 });
+    res.status(502).json({ success: false, error: message, statusCode: 502, empty: true });
   }
 });
 

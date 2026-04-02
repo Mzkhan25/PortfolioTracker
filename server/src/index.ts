@@ -28,16 +28,47 @@ app.use(express.json());
 app.use((req, res, next) => {
   const start = Date.now();
   const { method, originalUrl } = req;
+  const timestamp = new Date().toISOString();
 
-  console.log(`Request received on port ${port}: ${method} ${originalUrl}`);
+  // Redact sensitive fields from request body
+  const sanitizeBody = (body: any) => {
+    if (!body || typeof body !== "object") return body;
+    const copy = { ...body };
+    if (copy.password) copy.password = "[REDACTED]";
+    if (copy.token) copy.token = "[REDACTED]";
+    return copy;
+  };
 
+  const reqBody = Object.keys(req.body || {}).length > 0 ? sanitizeBody(req.body) : undefined;
+
+  console.log(
+    `[REQ] ${timestamp} ${method} ${originalUrl}` +
+    (reqBody ? ` body=${JSON.stringify(reqBody)}` : "") +
+    (req.headers.authorization ? ` auth=Bearer ...${req.headers.authorization.slice(-8)}` : "")
+  );
+
+  // Capture response body by intercepting res.json
+  const originalJson = res.json.bind(res);
+  let responseBody: any;
+  res.json = (body: any) => {
+    responseBody = body;
+    return originalJson(body);
+  };
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     const { statusCode } = res;
     const level = statusCode >= 500 ? "ERROR" : statusCode >= 400 ? "WARN" : "INFO";
+
+    // Truncate large response bodies (e.g. positions arrays)
+    let bodyLog = "";
+    if (responseBody) {
+      const str = JSON.stringify(responseBody);
+      bodyLog = str.length > 500 ? ` body=${str.slice(0, 500)}...` : ` body=${str}`;
+    }
+
     console.log(
-      `[${level}] ${new Date().toISOString()} ${method} ${originalUrl} → ${statusCode} (${duration}ms)`
+      `[${level}] ${new Date().toISOString()} ${method} ${originalUrl} → ${statusCode} (${duration}ms)${bodyLog}`
     );
   });
 
