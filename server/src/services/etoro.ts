@@ -84,22 +84,27 @@ export class EtoroService {
     rawCredit: number;
   }> {
     const response = await this.client.get("/trading/info/real/pnl");
-    const portfolio = response.data.clientPortfolio;
+    const portfolio = response.data.clientPortfolio || response.data;
+
+    // Convert USD → EUR using eToro's own forex rate
+    const eurUsdRate = await this.getEurUsdRate();
+    const toEur = (usd: number) => usd / eurUsdRate;
 
     const rawPositions = portfolio.positions || [];
     const totalInvested = rawPositions.reduce(
-      (sum: number, p: any) => sum + (p.amount || p.initialAmountInDollars || 0),
+      (sum: number, p: any) => sum + toEur(p.amount || p.initialAmountInDollars || 0),
       0
     );
     const totalPnl = rawPositions.reduce(
-      (sum: number, p: any) => sum + (p.pnL || 0),
+      (sum: number, p: any) => sum + toEur(p.unrealizedPnL?.pnL || 0),
       0
     );
-    const totalValue = totalInvested + totalPnl + (portfolio.credit || 0);
+    const credit = toEur(portfolio.credit || 0);
+    const totalValue = totalInvested + totalPnl + credit;
 
     const positions: Position[] = rawPositions.map((p: any) => {
-      const invested = p.amount || p.initialAmountInDollars || 0;
-      const pnl = p.pnL || 0;
+      const invested = toEur(p.amount || p.initialAmountInDollars || 0);
+      const pnl = toEur(p.unrealizedPnL?.pnL || 0);
       const pnlPercent = invested > 0 ? (pnl / invested) * 100 : 0;
       const currentValue = invested + pnl;
       const allocation = totalValue > 0 ? (currentValue / totalValue) * 100 : 0;
@@ -107,12 +112,12 @@ export class EtoroService {
       return {
         id: String(p.positionID),
         instrumentId: String(p.instrumentID),
-        instrumentName: "", // Enriched later via instruments endpoint
+        instrumentName: "",
         ticker: "",
         amount: invested,
         units: p.units || 0,
         openRate: p.openRate || 0,
-        currentRate: p.closeRate || 0,
+        currentRate: p.unrealizedPnL?.closeRate || 0,
         unrealizedPnl: pnl,
         unrealizedPnlPercent: pnlPercent,
         allocationPercent: allocation,
@@ -126,14 +131,14 @@ export class EtoroService {
     const overview: PortfolioOverview = {
       totalValue,
       equity: totalValue,
-      availableCash: portfolio.credit || 0,
+      availableCash: credit,
       unrealizedPnl: totalPnl,
       unrealizedPnlPercent: totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0,
-      dailyChange: 0, // Not directly available from this endpoint
+      dailyChange: 0,
       dailyChangePercent: 0,
     };
 
-    return { overview, positions, rawCredit: portfolio.credit || 0 };
+    return { overview, positions, rawCredit: credit };
   }
 
   /**
@@ -232,17 +237,29 @@ export class EtoroService {
       params: { instrumentIds: instrumentIds.join(",") },
     });
 
-    const rates = Array.isArray(response.data) ? response.data : response.data.rates || [];
+    const rates = Array.isArray(response.data)
+      ? response.data
+      : response.data.rates || [];
 
     return rates.map((r: any) => ({
-      instrumentId: String(r.instrumentId ?? r.InstrumentID),
+      instrumentId: String(r.instrumentID ?? r.instrumentId),
       bid: r.bid ?? r.Bid ?? 0,
       ask: r.ask ?? r.Ask ?? 0,
-      lastPrice: r.lastPrice ?? r.LastPrice ?? ((r.bid ?? 0) + (r.ask ?? 0)) / 2,
+      lastPrice: r.lastExecution ?? r.lastPrice ?? ((r.bid ?? 0) + (r.ask ?? 0)) / 2,
       dailyChange: r.dailyChange ?? 0,
       dailyChangePercent: r.dailyChangePercent ?? 0,
-      timestamp: r.timestamp ?? new Date().toISOString(),
+      timestamp: r.date ?? r.timestamp ?? new Date().toISOString(),
     }));
+  }
+
+  /**
+   * Get EUR/USD conversion rate using eToro's own forex rates.
+   * EUR/USD is instrument ID 1. Returns the rate to divide USD values by.
+   */
+  async getEurUsdRate(): Promise<number> {
+    const rates = await this.getRates(["1"]);
+    const eurUsd = rates.find((r) => r.instrumentId === "1");
+    return eurUsd?.lastPrice || 1;
   }
 
   /**

@@ -47,7 +47,7 @@ function TradeRow({ trade }: { trade: Trade }) {
         </View>
         <View style={styles.tradeRight}>
           <Text style={[styles.tradeProfit, isPositive ? styles.positive : styles.negative]}>
-            {isPositive ? "+" : ""}${trade.netProfit.toFixed(2)}
+            {isPositive ? "+" : ""}€{trade.netProfit.toFixed(2)}
           </Text>
         </View>
       </View>
@@ -57,14 +57,14 @@ function TradeRow({ trade }: { trade: Trade }) {
           {formatDate(trade.openDate)} → {formatDate(trade.closeDate)}
         </Text>
         <Text style={styles.tradeMeta}>
-          ${trade.openRate.toFixed(2)} → ${trade.closeRate.toFixed(2)}
+          €{trade.openRate.toFixed(2)} → €{trade.closeRate.toFixed(2)}
         </Text>
       </View>
 
       <View style={styles.tradeDetails}>
-        <Text style={styles.tradeDetail}>Invested: ${trade.investment.toFixed(2)}</Text>
+        <Text style={styles.tradeDetail}>Invested: €{trade.investment.toFixed(2)}</Text>
         <Text style={styles.tradeDetail}>Units: {trade.units.toFixed(2)}</Text>
-        {trade.fees > 0 && <Text style={styles.tradeDetail}>Fees: ${trade.fees.toFixed(2)}</Text>}
+        {trade.fees > 0 && <Text style={styles.tradeDetail}>Fees: €{trade.fees.toFixed(2)}</Text>}
       </View>
     </View>
   );
@@ -93,7 +93,7 @@ export default function HistoryScreen() {
       <View style={styles.summary}>
         <Text style={styles.summaryLabel}>Realized P&L ({dateRange})</Text>
         <Text style={[styles.summaryValue, isPositiveTotal ? styles.positive : styles.negative]}>
-          {isPositiveTotal ? "+" : ""}${totalProfit.toFixed(2)}
+          {isPositiveTotal ? "+" : ""}€{totalProfit.toFixed(2)}
         </Text>
         <Text style={styles.summaryCount}>{data?.total ?? 0} trades</Text>
       </View>

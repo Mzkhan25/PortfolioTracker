@@ -22,11 +22,11 @@ export function PositionRow({ position, onPress }: PositionRowProps) {
         </View>
         <View style={styles.right}>
           <Text style={styles.price}>
-            ${currentValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            €{currentValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </Text>
           <Text style={[styles.pnl, isPositive ? styles.positive : styles.negative]}>
             {isPositive ? "+" : ""}
-            ${position.unrealizedPnl.toFixed(2)} ({isPositive ? "+" : ""}
+            €{position.unrealizedPnl.toFixed(2)} ({isPositive ? "+" : ""}
             {position.unrealizedPnlPercent.toFixed(2)}%)
           </Text>
         </View>
@@ -34,7 +34,7 @@ export function PositionRow({ position, onPress }: PositionRowProps) {
 
       <View style={styles.bottom}>
         <Text style={styles.meta}>
-          {position.units.toFixed(2)} units @ ${position.openRate.toFixed(2)}
+          {position.units.toFixed(2)} units @ €{position.openRate.toFixed(2)}
         </Text>
         <Text style={styles.allocation}>
           {position.allocationPercent.toFixed(1)}%

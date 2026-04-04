@@ -38,7 +38,7 @@ function TagAnalyticsRow({ tag }: { tag: Tag }) {
             analytics.unrealizedPnl >= 0 ? styles.positive : styles.negative,
           ]}
         >
-          {analytics.unrealizedPnl >= 0 ? "+" : ""}${analytics.unrealizedPnl.toFixed(2)}
+          {analytics.unrealizedPnl >= 0 ? "+" : ""}€{analytics.unrealizedPnl.toFixed(2)}
           {" "}({analytics.unrealizedPnlPercent.toFixed(1)}%)
         </Text>
       )}

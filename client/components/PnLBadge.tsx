@@ -13,7 +13,7 @@ export function PnLBadge({ value, percent, size = "sm" }: PnLBadgeProps) {
   return (
     <View style={[styles.badge, isPositive ? styles.positive : styles.negative]}>
       <Text style={[styles.text, size === "lg" && styles.textLg]}>
-        {prefix}${value.toFixed(2)} ({prefix}{percent.toFixed(2)}%)
+        {prefix}€{value.toFixed(2)} ({prefix}{percent.toFixed(2)}%)
       </Text>
     </View>
   );

@@ -82,7 +82,7 @@ export default function MarketScreen() {
           <Text style={styles.instrumentName}>{activeInfo.name}</Text>
           <Text style={styles.currentPrice}>
             {currentRate
-              ? `$${currentRate.lastPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+              ? `€${currentRate.lastPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
               : "--"}
           </Text>
           {currentRate && currentRate.dailyChangePercent !== 0 && (
@@ -122,16 +122,16 @@ export default function MarketScreen() {
         <View style={styles.rateDetails}>
           <View style={styles.rateRow}>
             <Text style={styles.rateLabel}>Bid</Text>
-            <Text style={styles.rateValue}>${currentRate.bid.toFixed(2)}</Text>
+            <Text style={styles.rateValue}>€{currentRate.bid.toFixed(2)}</Text>
           </View>
           <View style={styles.rateRow}>
             <Text style={styles.rateLabel}>Ask</Text>
-            <Text style={styles.rateValue}>${currentRate.ask.toFixed(2)}</Text>
+            <Text style={styles.rateValue}>€{currentRate.ask.toFixed(2)}</Text>
           </View>
           <View style={styles.rateRow}>
             <Text style={styles.rateLabel}>Spread</Text>
             <Text style={styles.rateValue}>
-              ${(currentRate.ask - currentRate.bid).toFixed(4)}
+              €{(currentRate.ask - currentRate.bid).toFixed(4)}
             </Text>
           </View>
         </View>

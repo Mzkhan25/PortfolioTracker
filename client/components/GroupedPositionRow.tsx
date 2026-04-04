@@ -36,11 +36,11 @@ export function GroupedPositionRow({ group, onPositionPress }: GroupedPositionRo
           </View>
           <View style={styles.right}>
             <Text style={styles.price}>
-              ${currentValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              €{currentValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
             </Text>
             <Text style={[styles.pnl, isPositive ? styles.positive : styles.negative]}>
               {isPositive ? "+" : ""}
-              ${group.unrealizedPnl.toFixed(2)} ({isPositive ? "+" : ""}
+              €{group.unrealizedPnl.toFixed(2)} ({isPositive ? "+" : ""}
               {group.unrealizedPnlPercent.toFixed(2)}%)
             </Text>
           </View>
@@ -48,7 +48,7 @@ export function GroupedPositionRow({ group, onPositionPress }: GroupedPositionRo
 
         <View style={styles.bottom}>
           <Text style={styles.meta}>
-            {group.totalUnits.toFixed(2)} units · avg ${group.averageOpenRate.toFixed(2)}
+            {group.totalUnits.toFixed(2)} units · avg €{group.averageOpenRate.toFixed(2)}
           </Text>
           <View style={styles.expandHint}>
             <Text style={styles.allocation}>{group.allocationPercent.toFixed(1)}%</Text>
