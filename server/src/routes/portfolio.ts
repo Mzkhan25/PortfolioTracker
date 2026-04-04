@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, lt } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth.js";
 import { getEtoroService } from "../services/etoro.js";
 import { enrichPositions, enrichTags } from "../services/enrichment.js";
@@ -36,6 +36,22 @@ router.get("/overview", async (req: Request, res: Response) => {
       positionsJson: positions,
       fetchedAt: new Date(),
     });
+
+    // Compute daily change from previous day's snapshot
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const [prevSnapshot] = await db
+      .select()
+      .from(portfolioSnapshots)
+      .where(and(eq(portfolioSnapshots.userId, userId), lt(portfolioSnapshots.fetchedAt, todayStart)))
+      .orderBy(desc(portfolioSnapshots.fetchedAt))
+      .limit(1);
+
+    if (prevSnapshot) {
+      const prevValue = Number(prevSnapshot.totalValue);
+      overview.dailyChange = overview.totalValue - prevValue;
+      overview.dailyChangePercent = prevValue > 0 ? (overview.dailyChange / prevValue) * 100 : 0;
+    }
 
     // If tag filter, recalculate overview for only tagged positions
     if (tagId) {
@@ -187,6 +203,7 @@ router.get("/positions/grouped", async (req: Request, res: Response) => {
         instrumentId: first.instrumentId,
         instrumentName: first.instrumentName,
         ticker: first.ticker,
+        imageUrl: first.imageUrl,
         totalAmount,
         totalUnits,
         averageOpenRate: avgOpenRate,
@@ -226,6 +243,53 @@ router.get("/positions/:id", async (req: Request, res: Response) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch position";
     res.status(502).json({ success: false, error: message, statusCode: 502, empty: true });
+  }
+});
+
+router.get("/history", async (req: Request, res: Response) => {
+  const userId = req.auth!.userId;
+  const days = parseInt(String(req.query.days)) || 30;
+  const cacheKey = buildCacheKey(userId, `portfolio-history:${days}`);
+
+  if (tryCacheResponse(req, res, cacheKey)) return;
+
+  try {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const snapshots = await db
+      .select({
+        totalValue: portfolioSnapshots.totalValue,
+        unrealizedPnl: portfolioSnapshots.unrealizedPnl,
+        fetchedAt: portfolioSnapshots.fetchedAt,
+      })
+      .from(portfolioSnapshots)
+      .where(and(
+        eq(portfolioSnapshots.userId, userId),
+        lt(portfolioSnapshots.fetchedAt, new Date()) // all up to now
+      ))
+      .orderBy(portfolioSnapshots.fetchedAt);
+
+    // Deduplicate to one entry per day (keep latest per day)
+    const byDay = new Map<string, { totalValue: number; unrealizedPnl: number; date: string }>();
+    for (const s of snapshots) {
+      const day = s.fetchedAt.toISOString().split("T")[0];
+      byDay.set(day, {
+        totalValue: Number(s.totalValue),
+        unrealizedPnl: Number(s.unrealizedPnl),
+        date: day,
+      });
+    }
+
+    const history = Array.from(byDay.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(-days);
+
+    setCache(cacheKey, history, 300);
+    res.json({ success: true, data: history });
+  } catch (err) {
+    console.warn("Failed to fetch portfolio history:", err instanceof Error ? err.message : err);
+    res.json({ success: true, data: [], empty: true });
   }
 });
 

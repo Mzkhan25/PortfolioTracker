@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { router } from "expo-router";
 import {
   View,
   Text,
@@ -142,6 +143,7 @@ export default function PositionsScreen() {
         renderItem={({ item }) => (
           <GroupedPositionRow
             group={item}
+            onPress={() => router.push(`/position/${item.instrumentId}`)}
             onPositionPress={handlePositionPress}
           />
         )}

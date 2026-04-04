@@ -4,6 +4,12 @@ import type { PortfolioOverview, Position, GroupedPosition } from "@portfolio-tr
 
 const STALE_TIME = 60_000; // 60s — matches server cache TTL
 
+export interface PortfolioHistoryPoint {
+  totalValue: number;
+  unrealizedPnl: number;
+  date: string;
+}
+
 export function usePortfolioOverview(tagId?: string) {
   return useQuery<PortfolioOverview>({
     queryKey: ["portfolio", "overview", tagId],
@@ -35,5 +41,16 @@ export function useGroupedPositions() {
       return data.data;
     },
     staleTime: STALE_TIME,
+  });
+}
+
+export function usePortfolioHistory(days = 30) {
+  return useQuery<PortfolioHistoryPoint[]>({
+    queryKey: ["portfolio", "history", days],
+    queryFn: async () => {
+      const { data } = await api.get("/portfolio/history", { params: { days } });
+      return data.data;
+    },
+    staleTime: 300_000,
   });
 }

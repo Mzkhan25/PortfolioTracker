@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image } from "react-native";
 import type { Position } from "@portfolio-tracker/shared";
 import { TagChip } from "./TagChip";
 
@@ -15,7 +15,12 @@ export function PositionRow({ position, onPress }: PositionRowProps) {
     <Pressable style={styles.row} onPress={onPress}>
       <View style={styles.top}>
         <View style={styles.left}>
-          <Text style={styles.ticker}>{position.ticker || position.instrumentName || `#${position.instrumentId}`}</Text>
+          <View style={styles.tickerRow}>
+            {position.imageUrl && (
+              <Image source={{ uri: position.imageUrl }} style={styles.logo} />
+            )}
+            <Text style={styles.ticker}>{position.ticker || position.instrumentName || `#${position.instrumentId}`}</Text>
+          </View>
           <Text style={styles.name} numberOfLines={1}>
             {position.instrumentName || "Unknown instrument"}
           </Text>
@@ -68,6 +73,16 @@ const styles = StyleSheet.create({
   left: {
     flex: 1,
     marginRight: 12,
+  },
+  tickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  logo: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
   },
   ticker: {
     fontSize: 16,

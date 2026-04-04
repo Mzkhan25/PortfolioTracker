@@ -25,6 +25,7 @@ export async function enrichPositions(
       if (instrument) {
         pos.instrumentName = instrument.name;
         pos.ticker = instrument.ticker;
+        pos.imageUrl = instrument.imageUrl;
       }
     }
   } catch (err) {

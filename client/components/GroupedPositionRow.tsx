@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { GroupedPosition } from "@portfolio-tracker/shared";
 import { TagChip } from "./TagChip";
@@ -7,20 +7,24 @@ import { PositionRow } from "./PositionRow";
 
 interface GroupedPositionRowProps {
   group: GroupedPosition;
+  onPress?: () => void;
   onPositionPress?: (positionId: string) => void;
 }
 
-export function GroupedPositionRow({ group, onPositionPress }: GroupedPositionRowProps) {
+export function GroupedPositionRow({ group, onPress, onPositionPress }: GroupedPositionRowProps) {
   const [expanded, setExpanded] = useState(false);
   const isPositive = group.unrealizedPnl >= 0;
   const currentValue = group.totalAmount + group.unrealizedPnl;
 
   return (
     <View style={styles.container}>
-      <Pressable style={styles.row} onPress={() => setExpanded(!expanded)}>
+      <Pressable style={styles.row} onPress={onPress} onLongPress={() => setExpanded(!expanded)}>
         <View style={styles.top}>
           <View style={styles.left}>
             <View style={styles.tickerRow}>
+              {group.imageUrl && (
+                <Image source={{ uri: group.imageUrl }} style={styles.logo} />
+              )}
               <Text style={styles.ticker}>
                 {group.ticker || group.instrumentName || `#${group.instrumentId}`}
               </Text>
@@ -114,6 +118,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#ffffff",
+  },
+  logo: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
   countBadge: {
     backgroundColor: "#3b82f6",

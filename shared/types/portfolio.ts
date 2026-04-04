@@ -13,6 +13,7 @@ export interface Position {
   instrumentId: string;
   instrumentName: string;
   ticker: string;
+  imageUrl: string | null;
   amount: number;
   units: number;
   openRate: number;
@@ -36,6 +37,7 @@ export interface GroupedPosition {
   instrumentId: string;
   instrumentName: string;
   ticker: string;
+  imageUrl: string | null;
   totalAmount: number;
   totalUnits: number;
   averageOpenRate: number;

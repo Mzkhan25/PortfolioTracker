@@ -55,6 +55,10 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="position/[instrumentId]"
+              options={{ presentation: "modal", headerShown: true, headerStyle: { backgroundColor: "#0f172a" }, headerTintColor: "#fff", title: "Position Detail" }}
+            />
           </Stack>
         </AuthGate>
       </QueryClientProvider>

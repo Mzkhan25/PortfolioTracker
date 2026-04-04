@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions } from "react-native";
-import { PieChart } from "react-native-chart-kit";
-import { usePortfolioOverview, useGroupedPositions } from "../../hooks/usePortfolio";
+import { PieChart, LineChart } from "react-native-chart-kit";
+import { usePortfolioOverview, useGroupedPositions, usePortfolioHistory } from "../../hooks/usePortfolio";
 import { PortfolioCard } from "../../components/PortfolioCard";
 import { PnLBadge } from "../../components/PnLBadge";
 import { ErrorState } from "../../components/ErrorState";
@@ -17,6 +17,7 @@ function formatCurrency(value: number): string {
 export default function DashboardScreen() {
   const { data: overview, isLoading, isError, refetch, isRefetching } = usePortfolioOverview();
   const { data: grouped } = useGroupedPositions();
+  const { data: history } = usePortfolioHistory(30);
 
   const isPositive = (overview?.unrealizedPnl ?? 0) >= 0;
 
@@ -71,6 +72,14 @@ export default function DashboardScreen() {
               percent={overview?.unrealizedPnlPercent ?? 0}
               size="lg"
             />
+            {(overview?.dailyChange ?? 0) !== 0 && (
+              <Text style={styles.dailyChange}>
+                Today: {(overview?.dailyChange ?? 0) >= 0 ? "+" : ""}
+                {formatCurrency(overview?.dailyChange ?? 0)} (
+                {(overview?.dailyChangePercent ?? 0) >= 0 ? "+" : ""}
+                {(overview?.dailyChangePercent ?? 0).toFixed(2)}%)
+              </Text>
+            )}
           </>
         )}
       </View>
@@ -86,6 +95,38 @@ export default function DashboardScreen() {
           value={formatCurrency(overview?.availableCash ?? 0)}
         />
       </View>
+
+      {/* Portfolio Performance Chart */}
+      {history && history.length > 1 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Portfolio Value (30d)</Text>
+          <View style={styles.chartContainer}>
+            <LineChart
+              data={{
+                labels: history
+                  .filter((_, i) => i % Math.max(1, Math.floor(history.length / 5)) === 0)
+                  .map((h) => h.date.slice(5)), // "MM-DD"
+                datasets: [{ data: history.map((h) => h.totalValue) }],
+              }}
+              width={Dimensions.get("window").width - 32}
+              height={180}
+              chartConfig={{
+                backgroundColor: "#1e293b",
+                backgroundGradientFrom: "#1e293b",
+                backgroundGradientTo: "#1e293b",
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
+                labelColor: () => "#64748b",
+                propsForDots: { r: "2", strokeWidth: "1", stroke: "#3b82f6" },
+              }}
+              bezier
+              withDots={false}
+              withInnerLines={false}
+              style={{ borderRadius: 12 }}
+            />
+          </View>
+        </View>
+      )}
 
       {/* Allocation Chart */}
       {chartData.length > 0 && (
@@ -162,6 +203,11 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: "bold",
     color: "#ffffff",
+  },
+  dailyChange: {
+    fontSize: 13,
+    color: "#94a3b8",
+    marginTop: 4,
   },
   row: {
     flexDirection: "row",

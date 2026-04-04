@@ -15,8 +15,9 @@ A personal investment portfolio dashboard that connects to eToro's official API.
 client/           — Expo React Native app (mobile + web)
   app/(auth)/     — Login screen (password gate)
   app/(tabs)/     — 4 tabs: Dashboard, Positions, History, Market
-  components/     — Reusable UI (PositionRow, GroupedPositionRow, TagChip, TagModal, TagManager, etc.)
-  hooks/          — React Query hooks (useAuth, usePortfolio, useTags, etc.)
+  app/position/   — Position detail modal screen ([instrumentId].tsx)
+  components/     — Reusable UI (PositionRow, GroupedPositionRow, TagChip, TagModal, TagManager, PriceChart, etc.)
+  hooks/          — React Query hooks (useAuth, usePortfolio, usePortfolioHistory, useTags, etc.)
   services/api.ts — Axios client with JWT auth + auto-refresh interceptor
 server/           — Express API
   src/routes/     — auth, portfolio, history, market, tags
@@ -35,6 +36,10 @@ shared/           — TypeScript types shared between client and server
 - **Instrument enrichment:** Shared `enrichPositions()` / `enrichTrades()` in `server/src/services/enrichment.ts`. Instruments fetched once/day via 24h cache.
 - **EUR conversion:** All monetary values (invested, P&L, cash) converted USD→EUR server-side using eToro's own EUR/USD rate (instrument ID 1). Stock prices (openRate, currentRate) stay in USD.
 - **Grouped positions:** `/portfolio/positions/grouped` aggregates positions by `instrumentId` — weighted avg open rate, summed P&L/units, merged tags. Dashboard and Positions tab use grouped view.
+- **Daily change:** Computed by comparing current portfolio value against the most recent previous-day DB snapshot. Shows on dashboard header.
+- **Stock logos:** `imageUrl` field on Position/GroupedPosition, enriched from eToro instrument data (`images[0].uri`). Displayed in PositionRow and GroupedPositionRow.
+- **Position detail screen:** Modal at `/position/[instrumentId]` — shows price chart (with period selector), stats grid (invested, value, units, rates, allocation), and individual positions if grouped.
+- **Portfolio history chart:** `GET /portfolio/history?days=30` returns one snapshot per day from DB. LineChart on dashboard shows 30-day portfolio value trend.
 - **Tags:** User-defined tags on positions via `position_tags` join table. Portfolio overview supports `?tag=tagId` filter.
 - **JWT:** 7-day expiry for single-user convenience. Client auto-refreshes on 401 (skips refresh for /auth/refresh and /auth/login to prevent infinite loops).
 
@@ -90,20 +95,30 @@ npm run build          # Both (shared then server)
 - **PnL positions:** P&L is nested: `unrealizedPnL.pnL` and `unrealizedPnL.closeRate` (current market rate). Top-level has `positionID`, `instrumentID`, `amount`, `openRate`, `units`, `openDateTime`, `leverage`, `isBuy`
 - **Portfolio meta:** `accountCurrencyId: 1`, `credit` (available cash), `unrealizedPnL` (aggregate)
 
-## Known Issues / Next Steps
-- `.env` was committed to git history — credentials should be rotated and history scrubbed
-- `dotenv` loads from repo root (`../../.env` relative to server/src) — lazy DB connection via Proxy pattern
-- `sessions` table exists in production DB but is unused — can be dropped via migration if desired
-- Design spec: `docs/superpowers/specs/2026-04-01-portfolio-tracker-design.md`
-- Trade history (`getTradeHistory`) and candles (`getCandles`) field mappings not yet verified against real API responses
-- `getCandles()` response is double-nested: `{ candles: [{ instrumentId, candles: [...data...] }] }` with `fromDate` field
-- Trade history uses lowercase fields (`positionId`, `instrumentId`, `netProfit`) — already correct
+## Refactoring Notes
 - Singleton `getEtoroService()` avoids re-validating env vars per request
 - `tryCacheResponse()` helper in cache.ts replaces repeated cache-check pattern across routes
 - `enrichTags()` in enrichment.ts extracts duplicated tag-loading logic
 - React Query hooks use `staleTime` (60s portfolio/tags, 30s rates, 120s trades) matching server cache TTLs
+- Startup env validation in `index.ts` — fails fast on missing env vars
 
-## Future Features (not in v1)
+## eToro API Candle Response
+- Double-nested: `{ interval, candles: [{ instrumentId, candles: [...OHLCV...], rangeOpen, rangeClose }] }`
+- Individual candle fields: `fromDate`, `open`, `high`, `low`, `close`, `volume` (all lowercase)
+- Trade history uses lowercase fields: `positionId`, `instrumentId`, `netProfit`, `investment`, `fees`
+
+## Known Issues / Next Steps
+- `.env` credentials should be rotated (were never committed to git, but good practice)
+- `dotenv` loads from repo root (`../../.env` relative to server/src) — lazy DB connection via Proxy pattern
+- `sessions` table exists in production DB but is unused — can be dropped via migration if desired
+- Portfolio history chart needs multiple days of snapshots to populate (first day will be empty)
+- Daily change shows `0` until there's a snapshot from a previous day
+- Position detail screen navigates on tap, long-press to expand grouped positions (may need UX refinement)
+- Design spec: `docs/superpowers/specs/2026-04-01-portfolio-tracker-design.md`
+
+## Future Features
 - WebSocket real-time streaming
 - Multi-broker support
 - Push notifications
+- Loading skeletons / empty state designs
+- Portfolio alerts (price thresholds)

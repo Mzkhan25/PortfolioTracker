@@ -114,6 +114,7 @@ export class EtoroService {
         instrumentId: String(p.instrumentID),
         instrumentName: "",
         ticker: "",
+        imageUrl: null,
         amount: invested,
         units: p.units || 0,
         openRate: p.openRate || 0,
