@@ -9,10 +9,10 @@ import {
   ScrollView,
 } from "react-native";
 import type { Position } from "@portfolio-tracker/shared";
-import { usePositions } from "../../hooks/usePortfolio";
+import { useGroupedPositions } from "../../hooks/usePortfolio";
 import { useTags, useTagPosition, useUntagPosition } from "../../hooks/useTags";
 import { Ionicons } from "@expo/vector-icons";
-import { PositionRow } from "../../components/PositionRow";
+import { GroupedPositionRow } from "../../components/GroupedPositionRow";
 import { TagChip } from "../../components/TagChip";
 import { TagModal } from "../../components/TagModal";
 import { TagManager } from "../../components/TagManager";
@@ -20,7 +20,7 @@ import { TagManager } from "../../components/TagManager";
 type SortKey = "pnl" | "value" | "name";
 
 export default function PositionsScreen() {
-  const { data: positions, isLoading, refetch, isRefetching } = usePositions();
+  const { data: grouped, isLoading, refetch, isRefetching } = useGroupedPositions();
   const { data: tags } = useTags();
   const tagPosition = useTagPosition();
   const untagPosition = useUntagPosition();
@@ -42,11 +42,21 @@ export default function PositionsScreen() {
     [tagModalPosition]
   );
 
-  // Filter
-  let filtered = positions || [];
+  const handlePositionPress = useCallback(
+    (positionId: string) => {
+      // Find the position across all groups
+      const allPositions = (grouped || []).flatMap((g) => g.positions);
+      const position = allPositions.find((p) => p.id === positionId);
+      if (position) setTagModalPosition(position);
+    },
+    [grouped]
+  );
+
+  // Filter by tag (filter at position level, then re-group)
+  let filtered = grouped || [];
   if (filterTagId) {
-    filtered = filtered.filter((p) =>
-      p.tags?.some((t) => t.id === filterTagId)
+    filtered = filtered.filter((g) =>
+      g.tags?.some((t) => t.id === filterTagId)
     );
   }
 
@@ -56,13 +66,15 @@ export default function PositionsScreen() {
       case "pnl":
         return b.unrealizedPnlPercent - a.unrealizedPnlPercent;
       case "value":
-        return (b.amount + b.unrealizedPnl) - (a.amount + a.unrealizedPnl);
+        return (b.totalAmount + b.unrealizedPnl) - (a.totalAmount + a.unrealizedPnl);
       case "name":
         return (a.ticker || a.instrumentName).localeCompare(b.ticker || b.instrumentName);
       default:
         return 0;
     }
   });
+
+  const totalPositions = sorted.reduce((s, g) => s + g.positionCount, 0);
 
   return (
     <View style={styles.container}>
@@ -117,19 +129,20 @@ export default function PositionsScreen() {
             </Text>
           </Pressable>
         ))}
-        <Text style={styles.countText}>
-          {sorted.length} position{sorted.length !== 1 ? "s" : ""}
+        <Text style={styles.countLabel}>
+          {sorted.length} stock{sorted.length !== 1 ? "s" : ""}
+          {totalPositions !== sorted.length && ` · ${totalPositions} positions`}
         </Text>
       </View>
 
-      {/* Position List */}
+      {/* Grouped Position List */}
       <FlatList
         data={sorted}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.instrumentId}
         renderItem={({ item }) => (
-          <PositionRow
-            position={item}
-            onPress={() => setTagModalPosition(item)}
+          <GroupedPositionRow
+            group={item}
+            onPositionPress={handlePositionPress}
           />
         )}
         refreshControl={
@@ -227,7 +240,7 @@ const styles = StyleSheet.create({
   sortButtonTextActive: {
     color: "#ffffff",
   },
-  countText: {
+  countLabel: {
     fontSize: 12,
     color: "#64748b",
     marginLeft: "auto",

@@ -8,6 +8,7 @@ import type {
   Candle,
   CandlePeriod,
 } from "@portfolio-tracker/shared";
+import { getCachedInstruments, setCachedInstruments } from "./cache.js";
 
 const BASE_URL = process.env.ETORO_API_BASE_URL || "https://public-api.etoro.com/api/v1";
 
@@ -184,36 +185,43 @@ export class EtoroService {
 
     const instruments = Array.isArray(response.data)
       ? response.data
-      : response.data.instruments || [];
+      : response.data.instrumentDisplayDatas || response.data.instruments || [];
 
     return instruments.map((i: any) => ({
-      instrumentId: String(i.instrumentId ?? i.InstrumentID),
+      instrumentId: String(i.instrumentID ?? i.instrumentId),
       name: i.instrumentDisplayName ?? i.name ?? "",
       ticker: i.symbolFull ?? i.ticker ?? "",
-      type: i.instrumentType ?? i.type ?? "Stocks",
-      exchangeId: String(i.exchangeId ?? i.ExchangeID ?? ""),
-      imageUrl: i.imageUrl ?? i.Images?.[0]?.Uri ?? null,
+      type: i.instrumentTypeID ? String(i.instrumentTypeID) : (i.instrumentType ?? "Stocks"),
+      exchangeId: String(i.exchangeID ?? i.exchangeId ?? ""),
+      imageUrl: i.images?.[0]?.uri ?? i.imageUrl ?? null,
     }));
   }
 
   /**
    * Get instrument metadata (list of all instruments or filtered).
+   * Results are cached for 24 hours since instrument names rarely change.
    */
   async getInstruments(): Promise<Instrument[]> {
+    const cached = getCachedInstruments();
+    if (cached) return cached;
+
     const response = await this.client.get("/market-data/instruments");
 
     const instruments = Array.isArray(response.data)
       ? response.data
-      : response.data.instruments || [];
+      : response.data.instrumentDisplayDatas || response.data.instruments || [];
 
-    return instruments.map((i: any) => ({
-      instrumentId: String(i.instrumentId ?? i.InstrumentID),
+    const mapped: Instrument[] = instruments.map((i: any) => ({
+      instrumentId: String(i.instrumentID ?? i.instrumentId),
       name: i.instrumentDisplayName ?? i.name ?? "",
       ticker: i.symbolFull ?? i.ticker ?? "",
-      type: i.instrumentType ?? i.type ?? "Stocks",
-      exchangeId: String(i.exchangeId ?? i.ExchangeID ?? ""),
-      imageUrl: i.imageUrl ?? i.Images?.[0]?.Uri ?? null,
+      type: i.instrumentTypeID ? String(i.instrumentTypeID) : (i.instrumentType ?? "Stocks"),
+      exchangeId: String(i.exchangeID ?? i.exchangeId ?? ""),
+      imageUrl: i.images?.[0]?.uri ?? i.imageUrl ?? null,
     }));
+
+    setCachedInstruments(mapped);
+    return mapped;
   }
 
   /**

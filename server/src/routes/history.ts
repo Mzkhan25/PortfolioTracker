@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { authMiddleware } from "../middleware/auth.js";
 import { EtoroService } from "../services/etoro.js";
+import { enrichTrades } from "../services/enrichment.js";
 import { getCached, setCache, buildCacheKey } from "../services/cache.js";
 
 const router = Router();
@@ -32,23 +33,8 @@ router.get("/trades", async (req: Request, res: Response) => {
     const etoro = new EtoroService();
     const result = await etoro.getTradeHistory(minDate, page, pageSize);
 
-    // Enrich with instrument names
-    const instrumentIds = [...new Set(result.trades.map((t: any) => t.instrumentId))];
-    if (instrumentIds.length > 0) {
-      try {
-        const instruments = await etoro.getInstruments();
-        const instrumentMap = new Map(instruments.map((i) => [i.instrumentId, i]));
-        for (const trade of result.trades) {
-          const instrument = instrumentMap.get(trade.instrumentId);
-          if (instrument) {
-            trade.instrumentName = instrument.name;
-            trade.ticker = instrument.ticker;
-          }
-        }
-      } catch {
-        // Best effort enrichment
-      }
-    }
+    // Enrich with instrument names (uses 24h cached instruments)
+    await enrichTrades(result.trades, etoro);
 
     const response = {
       items: result.trades,

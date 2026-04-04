@@ -32,6 +32,22 @@ export interface TagSummary {
   color: string | null;
 }
 
+export interface GroupedPosition {
+  instrumentId: string;
+  instrumentName: string;
+  ticker: string;
+  totalAmount: number;
+  totalUnits: number;
+  averageOpenRate: number;
+  currentRate: number;
+  unrealizedPnl: number;
+  unrealizedPnlPercent: number;
+  allocationPercent: number;
+  positionCount: number;
+  positions: Position[];
+  tags: TagSummary[];
+}
+
 export interface PortfolioSnapshot {
   id: string;
   userId: string;

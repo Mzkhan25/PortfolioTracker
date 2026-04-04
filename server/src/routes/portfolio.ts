@@ -2,10 +2,11 @@ import { Router, Request, Response } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth.js";
 import { EtoroService } from "../services/etoro.js";
+import { enrichPositions } from "../services/enrichment.js";
 import { getCached, setCache, buildCacheKey } from "../services/cache.js";
 import { db } from "../db/index.js";
-import { portfolioSnapshots, positionTags } from "../db/schema.js";
-import type { PortfolioOverview } from "@portfolio-tracker/shared";
+import { portfolioSnapshots, positionTags, tags as tagsTable } from "../db/schema.js";
+import type { PortfolioOverview, GroupedPosition } from "@portfolio-tracker/shared";
 
 const router = Router();
 
@@ -28,7 +29,10 @@ router.get("/overview", async (req: Request, res: Response) => {
     const etoro = new EtoroService();
     const { overview, positions, rawCredit } = await etoro.getPortfolioPnl();
 
-    // Save snapshot to DB
+    // Enrich positions BEFORE saving snapshot so DB has names
+    await enrichPositions(positions, etoro);
+
+    // Save snapshot to DB (now with enriched names)
     await db.insert(portfolioSnapshots).values({
       userId,
       totalValue: String(overview.totalValue),
@@ -93,7 +97,6 @@ router.get("/overview", async (req: Request, res: Response) => {
       return;
     }
 
-    // No snapshot available — return empty overview so the app still renders
     console.warn("eToro API unavailable and no snapshots exist, returning empty overview");
     res.json({
       success: true,
@@ -128,29 +131,8 @@ router.get("/positions", async (req: Request, res: Response) => {
     const etoro = new EtoroService();
     const { positions } = await etoro.getPortfolioPnl();
 
-    // Enrich with instrument names
-    const instrumentIds = [...new Set(positions.map((p) => p.instrumentId))];
-    if (instrumentIds.length > 0) {
-      try {
-        const rates = await etoro.getRates(instrumentIds);
-        const instruments = await etoro.getInstruments();
-        const instrumentMap = new Map(instruments.map((i) => [i.instrumentId, i]));
-
-        for (const pos of positions) {
-          const instrument = instrumentMap.get(pos.instrumentId);
-          if (instrument) {
-            pos.instrumentName = instrument.name;
-            pos.ticker = instrument.ticker;
-          }
-          const rate = rates.find((r) => r.instrumentId === pos.instrumentId);
-          if (rate) {
-            pos.currentRate = rate.lastPrice;
-          }
-        }
-      } catch {
-        // Best effort — positions still returned without names
-      }
-    }
+    // Enrich with instrument names and rates
+    await enrichPositions(positions, etoro);
 
     // Enrich with tags
     const allPositionTags = await db
@@ -159,8 +141,6 @@ router.get("/positions", async (req: Request, res: Response) => {
       .where(eq(positionTags.userId, userId));
 
     if (allPositionTags.length > 0) {
-      // Load tag details
-      const { tags: tagsTable } = await import("../db/schema.js");
       const userTags = await db
         .select()
         .from(tagsTable)
@@ -192,8 +172,99 @@ router.get("/positions", async (req: Request, res: Response) => {
       return;
     }
 
-    // No snapshot available — return empty positions
     console.warn("eToro API unavailable and no snapshots exist, returning empty positions");
+    res.json({ success: true, data: [], cached: true, empty: true });
+  }
+});
+
+router.get("/positions/grouped", async (req: Request, res: Response) => {
+  const userId = req.auth!.userId;
+  const cacheKey = buildCacheKey(userId, "positions:grouped");
+
+  if (!req.query.refresh) {
+    const cached = getCached(cacheKey);
+    if (cached) {
+      res.json({ success: true, data: cached });
+      return;
+    }
+  }
+
+  try {
+    const etoro = new EtoroService();
+    const { positions } = await etoro.getPortfolioPnl();
+
+    await enrichPositions(positions, etoro);
+
+    // Enrich with tags
+    const allPositionTags = await db
+      .select()
+      .from(positionTags)
+      .where(eq(positionTags.userId, userId));
+
+    if (allPositionTags.length > 0) {
+      const userTags = await db
+        .select()
+        .from(tagsTable)
+        .where(eq(tagsTable.userId, userId));
+      const tagMap = new Map(userTags.map((t) => [t.id, { id: t.id, name: t.name, color: t.color }]));
+
+      for (const pos of positions) {
+        const ptags = allPositionTags
+          .filter((pt) => pt.etoroPositionId === pos.id)
+          .map((pt) => tagMap.get(pt.tagId))
+          .filter(Boolean) as { id: string; name: string; color: string | null }[];
+        pos.tags = ptags;
+      }
+    }
+
+    // Group by instrumentId
+    const groups = new Map<string, typeof positions>();
+    for (const pos of positions) {
+      const group = groups.get(pos.instrumentId) || [];
+      group.push(pos);
+      groups.set(pos.instrumentId, group);
+    }
+
+    const grouped: GroupedPosition[] = Array.from(groups.values()).map((group) => {
+      const first = group[0];
+      const totalAmount = group.reduce((s, p) => s + p.amount, 0);
+      const totalPnl = group.reduce((s, p) => s + p.unrealizedPnl, 0);
+      const totalUnits = group.reduce((s, p) => s + p.units, 0);
+      const totalAllocation = group.reduce((s, p) => s + p.allocationPercent, 0);
+      const avgOpenRate =
+        totalAmount > 0
+          ? group.reduce((s, p) => s + p.openRate * p.amount, 0) / totalAmount
+          : 0;
+
+      // Collect unique tags across all positions in the group
+      const tagMap = new Map<string, { id: string; name: string; color: string | null }>();
+      for (const pos of group) {
+        for (const tag of pos.tags || []) {
+          tagMap.set(tag.id, tag);
+        }
+      }
+
+      return {
+        instrumentId: first.instrumentId,
+        instrumentName: first.instrumentName,
+        ticker: first.ticker,
+        totalAmount,
+        totalUnits,
+        averageOpenRate: avgOpenRate,
+        currentRate: first.currentRate,
+        unrealizedPnl: totalPnl,
+        unrealizedPnlPercent: totalAmount > 0 ? (totalPnl / totalAmount) * 100 : 0,
+        allocationPercent: totalAllocation,
+        positionCount: group.length,
+        positions: group,
+        tags: Array.from(tagMap.values()),
+      };
+    });
+
+    setCache(cacheKey, grouped, 60);
+    res.json({ success: true, data: grouped });
+  } catch (err) {
+    console.warn("Failed to fetch grouped positions:", err instanceof Error ? err.message : err);
     res.json({ success: true, data: [], cached: true, empty: true });
   }
 });
@@ -211,6 +282,7 @@ router.get("/positions/:id", async (req: Request, res: Response) => {
       return;
     }
 
+    await enrichPositions([position], etoro);
     res.json({ success: true, data: position });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to fetch position";

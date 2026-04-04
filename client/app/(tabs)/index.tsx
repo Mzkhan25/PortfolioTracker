@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions } from "react-native";
 import { PieChart } from "react-native-chart-kit";
-import { usePortfolioOverview, usePositions } from "../../hooks/usePortfolio";
+import { usePortfolioOverview, useGroupedPositions } from "../../hooks/usePortfolio";
 import { PortfolioCard } from "../../components/PortfolioCard";
 import { PnLBadge } from "../../components/PnLBadge";
 import { ErrorState } from "../../components/ErrorState";
@@ -16,30 +16,30 @@ function formatCurrency(value: number): string {
 
 export default function DashboardScreen() {
   const { data: overview, isLoading, isError, refetch, isRefetching } = usePortfolioOverview();
-  const { data: positions } = usePositions();
+  const { data: grouped } = useGroupedPositions();
 
   const isPositive = (overview?.unrealizedPnl ?? 0) >= 0;
 
-  // Prepare pie chart data from positions
-  const chartData = (positions || [])
-    .sort((a, b) => (b.amount + b.unrealizedPnl) - (a.amount + a.unrealizedPnl))
+  // Prepare pie chart data from grouped positions (one slice per stock)
+  const chartData = (grouped || [])
+    .sort((a, b) => (b.totalAmount + b.unrealizedPnl) - (a.totalAmount + a.unrealizedPnl))
     .slice(0, 8)
-    .map((p, i) => ({
-      name: p.ticker || p.instrumentName || `#${p.instrumentId}`,
-      value: Math.max(p.amount + p.unrealizedPnl, 0),
+    .map((g, i) => ({
+      name: g.ticker || g.instrumentName || `#${g.instrumentId}`,
+      value: Math.max(g.totalAmount + g.unrealizedPnl, 0),
       color: CHART_COLORS[i % CHART_COLORS.length],
       legendFontColor: "#94a3b8",
       legendFontSize: 12,
     }));
 
-  // Top movers (sorted by P&L %)
-  const topGainers = (positions || [])
-    .filter((p) => p.unrealizedPnlPercent > 0)
+  // Top movers by stock (sorted by P&L %)
+  const topGainers = (grouped || [])
+    .filter((g) => g.unrealizedPnlPercent > 0)
     .sort((a, b) => b.unrealizedPnlPercent - a.unrealizedPnlPercent)
     .slice(0, 3);
 
-  const topLosers = (positions || [])
-    .filter((p) => p.unrealizedPnlPercent < 0)
+  const topLosers = (grouped || [])
+    .filter((g) => g.unrealizedPnlPercent < 0)
     .sort((a, b) => a.unrealizedPnlPercent - b.unrealizedPnlPercent)
     .slice(0, 3);
 
@@ -113,11 +113,11 @@ export default function DashboardScreen() {
       {topGainers.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Top Gainers</Text>
-          {topGainers.map((p) => (
-            <View key={p.id} style={styles.moverRow}>
-              <Text style={styles.moverTicker}>{p.ticker || p.instrumentName}</Text>
+          {topGainers.map((g) => (
+            <View key={g.instrumentId} style={styles.moverRow}>
+              <Text style={styles.moverTicker}>{g.ticker || g.instrumentName}</Text>
               <Text style={styles.moverPositive}>
-                +{p.unrealizedPnlPercent.toFixed(2)}%
+                +{g.unrealizedPnlPercent.toFixed(2)}%
               </Text>
             </View>
           ))}
@@ -128,11 +128,11 @@ export default function DashboardScreen() {
       {topLosers.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Top Losers</Text>
-          {topLosers.map((p) => (
-            <View key={p.id} style={styles.moverRow}>
-              <Text style={styles.moverTicker}>{p.ticker || p.instrumentName}</Text>
+          {topLosers.map((g) => (
+            <View key={g.instrumentId} style={styles.moverRow}>
+              <Text style={styles.moverTicker}>{g.ticker || g.instrumentName}</Text>
               <Text style={styles.moverNegative}>
-                {p.unrealizedPnlPercent.toFixed(2)}%
+                {g.unrealizedPnlPercent.toFixed(2)}%
               </Text>
             </View>
           ))}

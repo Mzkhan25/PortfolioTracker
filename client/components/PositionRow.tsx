@@ -15,7 +15,7 @@ export function PositionRow({ position, onPress }: PositionRowProps) {
     <Pressable style={styles.row} onPress={onPress}>
       <View style={styles.top}>
         <View style={styles.left}>
-          <Text style={styles.ticker}>{position.ticker || `#${position.instrumentId}`}</Text>
+          <Text style={styles.ticker}>{position.ticker || position.instrumentName || `#${position.instrumentId}`}</Text>
           <Text style={styles.name} numberOfLines={1}>
             {position.instrumentName || "Unknown instrument"}
           </Text>

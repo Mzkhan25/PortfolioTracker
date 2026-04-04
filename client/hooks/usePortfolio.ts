@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
-import type { PortfolioOverview, Position } from "@portfolio-tracker/shared";
+import type { PortfolioOverview, Position, GroupedPosition } from "@portfolio-tracker/shared";
 
 export function usePortfolioOverview(tagId?: string) {
   return useQuery<PortfolioOverview>({
@@ -18,6 +18,16 @@ export function usePositions() {
     queryKey: ["portfolio", "positions"],
     queryFn: async () => {
       const { data } = await api.get("/portfolio/positions");
+      return data.data;
+    },
+  });
+}
+
+export function useGroupedPositions() {
+  return useQuery<GroupedPosition[]>({
+    queryKey: ["portfolio", "positions", "grouped"],
+    queryFn: async () => {
+      const { data } = await api.get("/portfolio/positions/grouped");
       return data.data;
     },
   });
