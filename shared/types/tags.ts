@@ -6,14 +6,6 @@ export interface Tag {
   createdAt: string;
 }
 
-export interface PositionTag {
-  id: string;
-  userId: string;
-  etoroPositionId: string;
-  tagId: string;
-  createdAt: string;
-}
-
 export interface CreateTagRequest {
   name: string;
   color?: string;

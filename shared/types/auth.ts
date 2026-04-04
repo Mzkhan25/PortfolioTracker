@@ -8,13 +8,6 @@ export interface User {
   updatedAt: string;
 }
 
-export interface Session {
-  id: string;
-  userId: string;
-  expiresAt: string;
-  createdAt: string;
-}
-
 export interface LoginRequest {
   password: string;
 }

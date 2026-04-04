@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, decimal, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, timestamp, decimal, jsonb, unique } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -8,18 +8,6 @@ export const users = pgTable("users", {
   avatarUrl: varchar("avatar_url", { length: 1024 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const sessions = pgTable("sessions", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .references(() => users.id, { onDelete: "cascade" })
-    .notNull(),
-  jwtToken: text("jwt_token").notNull(),
-  etoroApiKey: text("etoro_api_key").notNull(),
-  etoroUserKey: text("etoro_user_key").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const portfolioSnapshots = pgTable("portfolio_snapshots", {

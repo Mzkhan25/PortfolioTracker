@@ -15,28 +15,32 @@ A personal investment portfolio dashboard that connects to eToro's official API.
 client/           — Expo React Native app (mobile + web)
   app/(auth)/     — Login screen (password gate)
   app/(tabs)/     — 4 tabs: Dashboard, Positions, History, Market
-  components/     — Reusable UI (PositionRow, TagChip, TagModal, TagManager, etc.)
+  components/     — Reusable UI (PositionRow, GroupedPositionRow, TagChip, TagModal, TagManager, etc.)
   hooks/          — React Query hooks (useAuth, usePortfolio, useTags, etc.)
   services/api.ts — Axios client with JWT auth + auto-refresh interceptor
 server/           — Express API
   src/routes/     — auth, portfolio, history, market, tags
-  src/services/   — etoro.ts (API wrapper), cache.ts, encryption.ts
+  src/services/   — etoro.ts (API wrapper), cache.ts, enrichment.ts
   src/middleware/  — auth.ts (JWT verification)
-  src/db/         — Drizzle schema (5 tables), migration runner
+  src/db/         — Drizzle schema (4 tables), migration runner
   drizzle/        — SQL migrations
 shared/           — TypeScript types shared between client and server
-  types/          — auth, portfolio, market, tags, api
+  types/          — auth, portfolio (incl. GroupedPosition), market, tags, api
 ```
 
 ## Key Architecture Decisions
 - **Single-user mode:** eToro API keys stored in server env vars (`ETORO_API_KEY`, `ETORO_USER_KEY`), not per-user in DB. Login is a simple password gate (`APP_PASSWORD` env var).
 - **eToro API auth:** Uses `x-api-key` (public key) + `x-user-key` (private key) + `x-request-id` (UUID per request). Base URL: `https://public-api.etoro.com/api/v1`
-- **Caching:** Two-tier — node-cache in-memory (60s TTL) + DB portfolio snapshots for offline fallback
+- **Caching:** Three-tier — 24h instrument cache (stock names), 60s node-cache (request data), DB portfolio snapshots (offline fallback)
+- **Instrument enrichment:** Shared `enrichPositions()` / `enrichTrades()` in `server/src/services/enrichment.ts`. Instruments fetched once/day via 24h cache.
+- **EUR conversion:** All monetary values (invested, P&L, cash) converted USD→EUR server-side using eToro's own EUR/USD rate (instrument ID 1). Stock prices (openRate, currentRate) stay in USD.
+- **Grouped positions:** `/portfolio/positions/grouped` aggregates positions by `instrumentId` — weighted avg open rate, summed P&L/units, merged tags. Dashboard and Positions tab use grouped view.
 - **Tags:** User-defined tags on positions via `position_tags` join table. Portfolio overview supports `?tag=tagId` filter.
 - **JWT:** 7-day expiry for single-user convenience. Client auto-refreshes on 401 (skips refresh for /auth/refresh and /auth/login to prevent infinite loops).
 
 ## Database (PostgreSQL on Railway)
-5 tables: `users`, `sessions`, `portfolio_snapshots`, `tags`, `position_tags`
+4 active tables: `users`, `portfolio_snapshots`, `tags`, `position_tags`
+- `sessions` table exists in DB but is unused (removed from schema after single-user refactor)
 - Schema: `server/src/db/schema.ts`
 - Migrations: `server/drizzle/`
 - Run migration: `cd server && npm run db:migrate`
@@ -80,12 +84,19 @@ npm run build          # Both (shared then server)
 - `GET /user-info/people/{username}` — User profile
 - Rate limits: 60 GET/min, 20 POST/min per user key
 
+## eToro API Field Mapping (verified with real API)
+- **Instruments:** Response wrapper key is `instrumentDisplayDatas` (not `instruments`). Fields: `instrumentID` (number), `instrumentDisplayName`, `symbolFull`, `instrumentTypeID`, `exchangeID`, `images[].uri`
+- **Rates:** Response wrapper key is `rates`. Fields: `instrumentID` (number), `bid`, `ask`, `lastExecution` (not `lastPrice`), `date`
+- **PnL positions:** P&L is nested: `unrealizedPnL.pnL` and `unrealizedPnL.closeRate` (current market rate). Top-level has `positionID`, `instrumentID`, `amount`, `openRate`, `units`, `openDateTime`, `leverage`, `isBuy`
+- **Portfolio meta:** `accountCurrencyId: 1`, `credit` (available cash), `unrealizedPnL` (aggregate)
+
 ## Known Issues / Next Steps
-- eToro API endpoint paths may need adjustment when tested with real API responses
+- `.env` was committed to git history — credentials should be rotated and history scrubbed
 - `dotenv` loads from repo root (`../../.env` relative to server/src) — lazy DB connection via Proxy pattern
-- Encryption service (`server/src/services/encryption.ts`) exists but unused after single-user refactor — can be removed
-- Sessions table exists but not actively used — JWT is stateless now
+- `sessions` table exists in production DB but is unused — can be dropped via migration if desired
 - Design spec: `docs/superpowers/specs/2026-04-01-portfolio-tracker-design.md`
+- Trade history (`getTradeHistory`) and candles (`getCandles`) field mappings not yet verified against real API responses
+- Potential optimizations: singleton EtoroService, cache-check middleware, tag enrichment extraction, React Query staleTime
 
 ## Future Features (not in v1)
 - WebSocket real-time streaming

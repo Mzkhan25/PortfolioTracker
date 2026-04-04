@@ -106,6 +106,15 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ success: false, error: "Internal server error", statusCode: 500 });
 });
 
+// Validate required environment variables before starting
+const requiredEnvVars = ["DATABASE_URL", "JWT_SECRET", "APP_PASSWORD", "ETORO_API_KEY", "ETORO_USER_KEY"];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`Missing required environment variable: ${envVar}`);
+    process.exit(1);
+  }
+}
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
