@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
-import { EtoroService } from "../services/etoro.js";
+import { getEtoroService } from "../services/etoro.js";
 import { authMiddleware, AuthPayload } from "../middleware/auth.js";
 
 const router = Router();
@@ -48,7 +48,7 @@ router.post("/login", async (req: Request, res: Response) => {
     };
 
     try {
-      const etoro = new EtoroService();
+      const etoro = getEtoroService();
       const identity = await etoro.validateKeys();
       profileData = {
         userId: String(identity.gcid),

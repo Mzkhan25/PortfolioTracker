@@ -28,5 +28,6 @@ export function useTradeHistory(page = 1, limit = 20, minDate?: string) {
       const { data } = await api.get("/history/trades", { params });
       return data.data;
     },
+    staleTime: 120_000, // 2min — trade history changes infrequently
   });
 }

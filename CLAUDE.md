@@ -96,7 +96,12 @@ npm run build          # Both (shared then server)
 - `sessions` table exists in production DB but is unused — can be dropped via migration if desired
 - Design spec: `docs/superpowers/specs/2026-04-01-portfolio-tracker-design.md`
 - Trade history (`getTradeHistory`) and candles (`getCandles`) field mappings not yet verified against real API responses
-- Potential optimizations: singleton EtoroService, cache-check middleware, tag enrichment extraction, React Query staleTime
+- `getCandles()` response is double-nested: `{ candles: [{ instrumentId, candles: [...data...] }] }` with `fromDate` field
+- Trade history uses lowercase fields (`positionId`, `instrumentId`, `netProfit`) — already correct
+- Singleton `getEtoroService()` avoids re-validating env vars per request
+- `tryCacheResponse()` helper in cache.ts replaces repeated cache-check pattern across routes
+- `enrichTags()` in enrichment.ts extracts duplicated tag-loading logic
+- React Query hooks use `staleTime` (60s portfolio/tags, 30s rates, 120s trades) matching server cache TTLs
 
 ## Future Features (not in v1)
 - WebSocket real-time streaming

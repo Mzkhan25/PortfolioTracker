@@ -12,6 +12,7 @@ export function useRates(instrumentIds: string[]) {
       return data.data;
     },
     enabled: instrumentIds.length > 0,
+    staleTime: 30_000, // 30s — rates change frequently
   });
 }
 
@@ -25,5 +26,6 @@ export function useCandles(instrumentId: string, period: CandlePeriod) {
       return data.data;
     },
     enabled: !!instrumentId,
+    staleTime: 60_000,
   });
 }

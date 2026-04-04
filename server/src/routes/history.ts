@@ -1,8 +1,8 @@
 import { Router, Request, Response } from "express";
 import { authMiddleware } from "../middleware/auth.js";
-import { EtoroService } from "../services/etoro.js";
+import { getEtoroService } from "../services/etoro.js";
 import { enrichTrades } from "../services/enrichment.js";
-import { getCached, setCache, buildCacheKey } from "../services/cache.js";
+import { setCache, buildCacheKey, tryCacheResponse } from "../services/cache.js";
 
 const router = Router();
 
@@ -21,16 +21,10 @@ router.get("/trades", async (req: Request, res: Response) => {
 
   const cacheKey = buildCacheKey(userId, `trades:${minDate}:${page}:${pageSize}`);
 
-  if (!req.query.refresh) {
-    const cached = getCached(cacheKey);
-    if (cached) {
-      res.json({ success: true, data: cached });
-      return;
-    }
-  }
+  if (tryCacheResponse(req, res, cacheKey)) return;
 
   try {
-    const etoro = new EtoroService();
+    const etoro = getEtoroService();
     const result = await etoro.getTradeHistory(minDate, page, pageSize);
 
     // Enrich with instrument names (uses 24h cached instruments)
@@ -62,7 +56,7 @@ router.get("/trades/:id", async (req: Request, res: Response) => {
   const minDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
   try {
-    const etoro = new EtoroService();
+    const etoro = getEtoroService();
     const result = await etoro.getTradeHistory(minDate, 1, 100);
     const trade = result.trades.find((t: any) => t.id === tradeId);
 

@@ -1,5 +1,8 @@
+import { eq } from "drizzle-orm";
 import type { Position } from "@portfolio-tracker/shared";
 import { EtoroService } from "./etoro.js";
+import { db } from "../db/index.js";
+import { positionTags, tags as tagsTable } from "../db/schema.js";
 
 /**
  * Enrich positions with instrument names, tickers, and current rates.
@@ -52,6 +55,32 @@ export async function enrichPositions(
  * Enrich trade objects with instrument names and tickers.
  * Trades use the same instrumentId field as positions.
  */
+/**
+ * Enrich positions with user-defined tags from the database.
+ */
+export async function enrichTags(positions: Position[], userId: string): Promise<void> {
+  const allPositionTags = await db
+    .select()
+    .from(positionTags)
+    .where(eq(positionTags.userId, userId));
+
+  if (allPositionTags.length === 0) return;
+
+  const userTags = await db
+    .select()
+    .from(tagsTable)
+    .where(eq(tagsTable.userId, userId));
+  const tagMap = new Map(userTags.map((t) => [t.id, { id: t.id, name: t.name, color: t.color }]));
+
+  for (const pos of positions) {
+    const ptags = allPositionTags
+      .filter((pt) => pt.etoroPositionId === pos.id)
+      .map((pt) => tagMap.get(pt.tagId))
+      .filter(Boolean) as { id: string; name: string; color: string | null }[];
+    pos.tags = ptags;
+  }
+}
+
 export async function enrichTrades(
   trades: Array<{ instrumentId: string; instrumentName: string; ticker: string }>,
   etoro: EtoroService

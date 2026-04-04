@@ -32,6 +32,24 @@ export function buildCacheKey(userId: string, resource: string): string {
   return `${userId}:${resource}`;
 }
 
+/**
+ * Try to serve a cached response. Returns true if cache hit (response sent).
+ */
+export function tryCacheResponse(
+  req: { query: { refresh?: string } },
+  res: { json: (body: any) => void },
+  cacheKey: string
+): boolean {
+  if (!req.query.refresh) {
+    const cached = getCached(cacheKey);
+    if (cached) {
+      res.json({ success: true, data: cached });
+      return true;
+    }
+  }
+  return false;
+}
+
 // --- Instrument cache (24h TTL) ---
 
 export function getCachedInstruments(): Instrument[] | undefined {

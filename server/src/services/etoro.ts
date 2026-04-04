@@ -158,6 +158,10 @@ export class EtoroService {
 
     const trades = Array.isArray(response.data) ? response.data : response.data.trades || [];
 
+    // Convert USD → EUR
+    const eurUsdRate = await this.getEurUsdRate();
+    const toEur = (usd: number) => usd / eurUsdRate;
+
     return {
       trades: trades.map((t: any) => ({
         id: String(t.positionId || t.orderId),
@@ -169,11 +173,11 @@ export class EtoroService {
         closeRate: t.closeRate || 0,
         openDate: t.openTimestamp || "",
         closeDate: t.closeTimestamp || "",
-        investment: t.investment || t.initialInvestment || 0,
+        investment: toEur(t.investment || t.initialInvestment || 0),
         units: t.units || 0,
         leverage: t.leverage || 1,
-        netProfit: t.netProfit || 0,
-        fees: t.fees || 0,
+        netProfit: toEur(t.netProfit || 0),
+        fees: toEur(t.fees || 0),
         stopLossRate: t.stopLossRate || 0,
         takeProfitRate: t.takeProfitRate || 0,
       })),
@@ -272,15 +276,30 @@ export class EtoroService {
       `/market-data/instruments/${instrumentId}/history/candles/asc/${config.interval}/${config.count}`
     );
 
-    const candles = Array.isArray(response.data) ? response.data : response.data.candles || [];
+    // eToro nests candles: { candles: [{ instrumentId, candles: [...data...] }] }
+    let candleData: any[] = [];
+    if (Array.isArray(response.data)) {
+      candleData = response.data;
+    } else if (response.data.candles?.[0]?.candles) {
+      candleData = response.data.candles[0].candles;
+    } else if (response.data.candles) {
+      candleData = response.data.candles;
+    }
 
-    return candles.map((c: any) => ({
-      timestamp: c.dateTime ?? c.timestamp ?? "",
-      open: c.open ?? c.Open ?? 0,
-      high: c.high ?? c.High ?? 0,
-      low: c.low ?? c.Low ?? 0,
-      close: c.close ?? c.Close ?? 0,
-      volume: c.volume ?? c.Volume ?? 0,
+    return candleData.map((c: any) => ({
+      timestamp: c.fromDate ?? c.dateTime ?? c.timestamp ?? "",
+      open: c.open ?? 0,
+      high: c.high ?? 0,
+      low: c.low ?? 0,
+      close: c.close ?? 0,
+      volume: c.volume ?? 0,
     }));
   }
+}
+
+// Singleton instance — avoids re-validating env vars on every request
+let _instance: EtoroService | null = null;
+export function getEtoroService(): EtoroService {
+  _instance ??= new EtoroService();
+  return _instance;
 }

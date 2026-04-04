@@ -1,11 +1,11 @@
 import { Router, Request, Response } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { authMiddleware } from "../middleware/auth.js";
-import { EtoroService } from "../services/etoro.js";
-import { enrichPositions } from "../services/enrichment.js";
-import { getCached, setCache, buildCacheKey } from "../services/cache.js";
+import { getEtoroService } from "../services/etoro.js";
+import { enrichPositions, enrichTags } from "../services/enrichment.js";
+import { setCache, buildCacheKey, tryCacheResponse } from "../services/cache.js";
 import { db } from "../db/index.js";
-import { portfolioSnapshots, positionTags, tags as tagsTable } from "../db/schema.js";
+import { portfolioSnapshots, positionTags } from "../db/schema.js";
 import type { PortfolioOverview, GroupedPosition } from "@portfolio-tracker/shared";
 
 const router = Router();
@@ -17,16 +17,10 @@ router.get("/overview", async (req: Request, res: Response) => {
   const tagId = req.query.tag as string | undefined;
   const cacheKey = buildCacheKey(userId, tagId ? `overview:${tagId}` : "overview");
 
-  if (!req.query.refresh) {
-    const cached = getCached(cacheKey);
-    if (cached) {
-      res.json({ success: true, data: cached });
-      return;
-    }
-  }
+  if (tryCacheResponse(req, res, cacheKey)) return;
 
   try {
-    const etoro = new EtoroService();
+    const etoro = getEtoroService();
     const { overview, positions, rawCredit } = await etoro.getPortfolioPnl();
 
     // Enrich positions BEFORE saving snapshot so DB has names
@@ -119,42 +113,14 @@ router.get("/positions", async (req: Request, res: Response) => {
   const userId = req.auth!.userId;
   const cacheKey = buildCacheKey(userId, "positions");
 
-  if (!req.query.refresh) {
-    const cached = getCached(cacheKey);
-    if (cached) {
-      res.json({ success: true, data: cached });
-      return;
-    }
-  }
+  if (tryCacheResponse(req, res, cacheKey)) return;
 
   try {
-    const etoro = new EtoroService();
+    const etoro = getEtoroService();
     const { positions } = await etoro.getPortfolioPnl();
 
-    // Enrich with instrument names and rates
     await enrichPositions(positions, etoro);
-
-    // Enrich with tags
-    const allPositionTags = await db
-      .select()
-      .from(positionTags)
-      .where(eq(positionTags.userId, userId));
-
-    if (allPositionTags.length > 0) {
-      const userTags = await db
-        .select()
-        .from(tagsTable)
-        .where(eq(tagsTable.userId, userId));
-      const tagMap = new Map(userTags.map((t) => [t.id, { id: t.id, name: t.name, color: t.color }]));
-
-      for (const pos of positions) {
-        const ptags = allPositionTags
-          .filter((pt) => pt.etoroPositionId === pos.id)
-          .map((pt) => tagMap.get(pt.tagId))
-          .filter(Boolean) as { id: string; name: string; color: string | null }[];
-        pos.tags = ptags;
-      }
-    }
+    await enrichTags(positions, userId);
 
     setCache(cacheKey, positions, 60);
     res.json({ success: true, data: positions });
@@ -181,41 +147,14 @@ router.get("/positions/grouped", async (req: Request, res: Response) => {
   const userId = req.auth!.userId;
   const cacheKey = buildCacheKey(userId, "positions:grouped");
 
-  if (!req.query.refresh) {
-    const cached = getCached(cacheKey);
-    if (cached) {
-      res.json({ success: true, data: cached });
-      return;
-    }
-  }
+  if (tryCacheResponse(req, res, cacheKey)) return;
 
   try {
-    const etoro = new EtoroService();
+    const etoro = getEtoroService();
     const { positions } = await etoro.getPortfolioPnl();
 
     await enrichPositions(positions, etoro);
-
-    // Enrich with tags
-    const allPositionTags = await db
-      .select()
-      .from(positionTags)
-      .where(eq(positionTags.userId, userId));
-
-    if (allPositionTags.length > 0) {
-      const userTags = await db
-        .select()
-        .from(tagsTable)
-        .where(eq(tagsTable.userId, userId));
-      const tagMap = new Map(userTags.map((t) => [t.id, { id: t.id, name: t.name, color: t.color }]));
-
-      for (const pos of positions) {
-        const ptags = allPositionTags
-          .filter((pt) => pt.etoroPositionId === pos.id)
-          .map((pt) => tagMap.get(pt.tagId))
-          .filter(Boolean) as { id: string; name: string; color: string | null }[];
-        pos.tags = ptags;
-      }
-    }
+    await enrichTags(positions, userId);
 
     // Group by instrumentId
     const groups = new Map<string, typeof positions>();
@@ -273,7 +212,7 @@ router.get("/positions/:id", async (req: Request, res: Response) => {
   const positionId = String(req.params.id);
 
   try {
-    const etoro = new EtoroService();
+    const etoro = getEtoroService();
     const { positions } = await etoro.getPortfolioPnl();
     const position = positions.find((p) => p.id === positionId);
 

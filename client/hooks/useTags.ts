@@ -9,6 +9,7 @@ export function useTags() {
       const { data } = await api.get("/tags");
       return data.data;
     },
+    staleTime: 60_000,
   });
 }
 

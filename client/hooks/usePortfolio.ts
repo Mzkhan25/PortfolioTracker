@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
 import type { PortfolioOverview, Position, GroupedPosition } from "@portfolio-tracker/shared";
 
+const STALE_TIME = 60_000; // 60s — matches server cache TTL
+
 export function usePortfolioOverview(tagId?: string) {
   return useQuery<PortfolioOverview>({
     queryKey: ["portfolio", "overview", tagId],
@@ -10,6 +12,7 @@ export function usePortfolioOverview(tagId?: string) {
       const { data } = await api.get("/portfolio/overview", { params });
       return data.data;
     },
+    staleTime: STALE_TIME,
   });
 }
 
@@ -20,6 +23,7 @@ export function usePositions() {
       const { data } = await api.get("/portfolio/positions");
       return data.data;
     },
+    staleTime: STALE_TIME,
   });
 }
 
@@ -30,5 +34,6 @@ export function useGroupedPositions() {
       const { data } = await api.get("/portfolio/positions/grouped");
       return data.data;
     },
+    staleTime: STALE_TIME,
   });
 }
