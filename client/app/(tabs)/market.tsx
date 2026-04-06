@@ -7,15 +7,18 @@ import {
   Pressable,
   RefreshControl,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import type { CandlePeriod } from "@portfolio-tracker/shared";
 import { usePositions } from "../../hooks/usePortfolio";
 import { useCandles, useRates } from "../../hooks/useMarketData";
 import { PriceChart } from "../../components/PriceChart";
+import { ErrorState } from "../../components/ErrorState";
+import { SkeletonPriceHeader, SkeletonChart } from "../../components/Skeleton";
 
 const PERIODS: CandlePeriod[] = ["1D", "1W", "1M", "3M", "1Y"];
 
 export default function MarketScreen() {
-  const { data: positions } = usePositions();
+  const { data: positions, isLoading: positionsLoading, isError: positionsError, refetch: refetchPositions } = usePositions();
   const [selectedInstrument, setSelectedInstrument] = useState<string | null>(null);
   const [period, setPeriod] = useState<CandlePeriod>("1M");
 
@@ -77,70 +80,79 @@ export default function MarketScreen() {
       </ScrollView>
 
       {/* Current Price */}
-      {activeInfo && (
-        <View style={styles.priceHeader}>
-          <Text style={styles.instrumentName}>{activeInfo.name}</Text>
-          <Text style={styles.currentPrice}>
-            {currentRate
-              ? `€${currentRate.lastPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-              : "--"}
-          </Text>
-          {currentRate && currentRate.dailyChangePercent !== 0 && (
-            <Text
-              style={[
-                styles.dailyChange,
-                currentRate.dailyChangePercent >= 0 ? styles.positive : styles.negative,
-              ]}
-            >
-              {currentRate.dailyChangePercent >= 0 ? "+" : ""}
-              {currentRate.dailyChangePercent.toFixed(2)}% today
+      {positionsLoading ? (
+        <>
+          <SkeletonPriceHeader />
+          <SkeletonChart />
+        </>
+      ) : positionsError ? (
+        <ErrorState message="Failed to load market data" onRetry={refetchPositions} />
+      ) : activeInfo ? (
+        <>
+          <View style={styles.priceHeader}>
+            <Text style={styles.instrumentName}>{activeInfo.name}</Text>
+            <Text style={styles.currentPrice}>
+              {currentRate
+                ? `€${currentRate.lastPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                : "--"}
             </Text>
+            {currentRate && currentRate.dailyChangePercent !== 0 && (
+              <Text
+                style={[
+                  styles.dailyChange,
+                  currentRate.dailyChangePercent >= 0 ? styles.positive : styles.negative,
+                ]}
+              >
+                {currentRate.dailyChangePercent >= 0 ? "+" : ""}
+                {currentRate.dailyChangePercent.toFixed(2)}% today
+              </Text>
+            )}
+          </View>
+
+          {/* Chart */}
+          <PriceChart candles={candles || []} isLoading={candlesLoading} />
+
+          {/* Period Selector */}
+          <View style={styles.periodRow}>
+            {PERIODS.map((p) => (
+              <Pressable
+                key={p}
+                style={[styles.periodBtn, period === p && styles.periodBtnActive]}
+                onPress={() => setPeriod(p)}
+              >
+                <Text style={[styles.periodText, period === p && styles.periodTextActive]}>
+                  {p}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Rate Details */}
+          {currentRate && (
+            <View style={styles.rateDetails}>
+              <View style={styles.rateRow}>
+                <Text style={styles.rateLabel}>Bid</Text>
+                <Text style={styles.rateValue}>€{currentRate.bid.toFixed(2)}</Text>
+              </View>
+              <View style={styles.rateRow}>
+                <Text style={styles.rateLabel}>Ask</Text>
+                <Text style={styles.rateValue}>€{currentRate.ask.toFixed(2)}</Text>
+              </View>
+              <View style={styles.rateRow}>
+                <Text style={styles.rateLabel}>Spread</Text>
+                <Text style={styles.rateValue}>
+                  €{(currentRate.ask - currentRate.bid).toFixed(4)}
+                </Text>
+              </View>
+            </View>
           )}
-        </View>
-      )}
-
-      {/* Chart */}
-      <PriceChart candles={candles || []} isLoading={candlesLoading} />
-
-      {/* Period Selector */}
-      <View style={styles.periodRow}>
-        {PERIODS.map((p) => (
-          <Pressable
-            key={p}
-            style={[styles.periodBtn, period === p && styles.periodBtnActive]}
-            onPress={() => setPeriod(p)}
-          >
-            <Text style={[styles.periodText, period === p && styles.periodTextActive]}>
-              {p}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {/* Rate Details */}
-      {currentRate && (
-        <View style={styles.rateDetails}>
-          <View style={styles.rateRow}>
-            <Text style={styles.rateLabel}>Bid</Text>
-            <Text style={styles.rateValue}>€{currentRate.bid.toFixed(2)}</Text>
-          </View>
-          <View style={styles.rateRow}>
-            <Text style={styles.rateLabel}>Ask</Text>
-            <Text style={styles.rateValue}>€{currentRate.ask.toFixed(2)}</Text>
-          </View>
-          <View style={styles.rateRow}>
-            <Text style={styles.rateLabel}>Spread</Text>
-            <Text style={styles.rateValue}>
-              €{(currentRate.ask - currentRate.bid).toFixed(4)}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {instruments.length === 0 && (
+        </>
+      ) : (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            Connect to eToro to see market data for your portfolio instruments
+          <Ionicons name="analytics-outline" size={48} color="#334155" />
+          <Text style={styles.emptyText}>No instruments to display</Text>
+          <Text style={styles.emptySubtext}>
+            Open positions on eToro to see market data here
           </Text>
         </View>
       )}
@@ -174,5 +186,6 @@ const styles = StyleSheet.create({
   rateLabel: { fontSize: 14, color: "#94a3b8" },
   rateValue: { fontSize: 14, fontWeight: "600", color: "#ffffff" },
   emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 48, paddingHorizontal: 32 },
-  emptyText: { fontSize: 16, color: "#64748b", textAlign: "center" },
+  emptyText: { fontSize: 16, color: "#64748b", textAlign: "center", marginTop: 12 },
+  emptySubtext: { fontSize: 13, color: "#475569", textAlign: "center", marginTop: 4 },
 });

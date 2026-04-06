@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { LineChart } from "react-native-chart-kit";
+import { Ionicons } from "@expo/vector-icons";
 import type { Candle } from "@portfolio-tracker/shared";
+import { Skeleton } from "./Skeleton";
 
 interface PriceChartProps {
   candles: Candle[];
@@ -11,7 +13,9 @@ export function PriceChart({ candles, isLoading }: PriceChartProps) {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.placeholder}>Loading chart...</Text>
+        <View style={styles.skeletonChart}>
+          <Skeleton width="100%" height={180} borderRadius={8} />
+        </View>
       </View>
     );
   }
@@ -19,7 +23,10 @@ export function PriceChart({ candles, isLoading }: PriceChartProps) {
   if (candles.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.placeholder}>No chart data available</Text>
+        <View style={styles.emptyChart}>
+          <Ionicons name="bar-chart-outline" size={32} color="#334155" />
+          <Text style={styles.placeholder}>No chart data available</Text>
+        </View>
       </View>
     );
   }
@@ -79,10 +86,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingRight: 0,
   },
+  skeletonChart: {
+    padding: 12,
+  },
+  emptyChart: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 8,
+  },
   placeholder: {
     color: "#64748b",
     fontSize: 14,
     textAlign: "center",
-    paddingVertical: 80,
   },
 });

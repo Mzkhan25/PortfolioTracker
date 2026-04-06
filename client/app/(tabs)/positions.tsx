@@ -17,11 +17,13 @@ import { GroupedPositionRow } from "../../components/GroupedPositionRow";
 import { TagChip } from "../../components/TagChip";
 import { TagModal } from "../../components/TagModal";
 import { TagManager } from "../../components/TagManager";
+import { ErrorState } from "../../components/ErrorState";
+import { SkeletonPositionRow } from "../../components/Skeleton";
 
 type SortKey = "pnl" | "value" | "name";
 
 export default function PositionsScreen() {
-  const { data: grouped, isLoading, refetch, isRefetching } = useGroupedPositions();
+  const { data: grouped, isLoading, isError, refetch, isRefetching } = useGroupedPositions();
   const { data: tags } = useTags();
   const tagPosition = useTagPosition();
   const untagPosition = useUntagPosition();
@@ -155,15 +157,33 @@ export default function PositionsScreen() {
           />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {isLoading
-                ? "Loading positions..."
-                : filterTagId
-                ? "No positions with this tag"
-                : "No open positions"}
-            </Text>
-          </View>
+          isLoading ? (
+            <View>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <SkeletonPositionRow key={i} />
+              ))}
+            </View>
+          ) : isError ? (
+            <ErrorState message="Failed to load positions" onRetry={refetch} />
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name={filterTagId ? "pricetag-outline" : "briefcase-outline"}
+                size={48}
+                color="#334155"
+              />
+              <Text style={styles.emptyText}>
+                {filterTagId
+                  ? "No positions with this tag"
+                  : "No open positions"}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {filterTagId
+                  ? "Try selecting a different tag or clear the filter"
+                  : "Your open positions will appear here"}
+              </Text>
+            </View>
+          )
         }
         contentContainerStyle={sorted.length === 0 ? styles.emptyList : undefined}
       />
@@ -256,6 +276,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#64748b",
     textAlign: "center",
+    marginTop: 12,
+  },
+  emptySubtext: {
+    fontSize: 13,
+    color: "#475569",
+    textAlign: "center",
+    marginTop: 4,
   },
   emptyList: {
     flexGrow: 1,

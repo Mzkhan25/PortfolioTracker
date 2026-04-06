@@ -4,6 +4,7 @@ import { usePortfolioOverview, useGroupedPositions, usePortfolioHistory } from "
 import { PortfolioCard } from "../../components/PortfolioCard";
 import { PnLBadge } from "../../components/PnLBadge";
 import { ErrorState } from "../../components/ErrorState";
+import { SkeletonDashboardHeader, SkeletonCard, SkeletonChart } from "../../components/Skeleton";
 
 const CHART_COLORS = [
   "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6",
@@ -18,8 +19,6 @@ export default function DashboardScreen() {
   const { data: overview, isLoading, isError, refetch, isRefetching } = usePortfolioOverview();
   const { data: grouped } = useGroupedPositions();
   const { data: history } = usePortfolioHistory(30);
-
-  const isPositive = (overview?.unrealizedPnl ?? 0) >= 0;
 
   // Prepare pie chart data from grouped positions (one slice per stock)
   const chartData = (grouped || [])
@@ -58,12 +57,20 @@ export default function DashboardScreen() {
       {isError && <ErrorState message="Failed to load portfolio data" onRetry={refetch} />}
 
       {/* Portfolio Value Header */}
-      <View style={styles.header}>
-        <Text style={styles.label}>Total Portfolio Value</Text>
-        {isLoading ? (
-          <Text style={styles.value}>Loading...</Text>
-        ) : (
-          <>
+      {isLoading ? (
+        <>
+          <SkeletonDashboardHeader />
+          <View style={styles.row}>
+            <SkeletonCard />
+            <SkeletonCard />
+          </View>
+          <SkeletonChart />
+          <SkeletonChart />
+        </>
+      ) : (
+        <>
+          <View style={styles.header}>
+            <Text style={styles.label}>Total Portfolio Value</Text>
             <Text style={styles.value}>
               {formatCurrency(overview?.totalValue ?? 0)}
             </Text>
@@ -80,21 +87,19 @@ export default function DashboardScreen() {
                 {(overview?.dailyChangePercent ?? 0).toFixed(2)}%)
               </Text>
             )}
-          </>
-        )}
-      </View>
+          </View>
 
-      {/* Equity & Cash Cards */}
-      <View style={styles.row}>
-        <PortfolioCard
-          label="Equity"
-          value={formatCurrency(overview?.equity ?? 0)}
-        />
-        <PortfolioCard
-          label="Available Cash"
-          value={formatCurrency(overview?.availableCash ?? 0)}
-        />
-      </View>
+          {/* Equity & Cash Cards */}
+          <View style={styles.row}>
+            <PortfolioCard
+              label="Equity"
+              value={formatCurrency(overview?.equity ?? 0)}
+            />
+            <PortfolioCard
+              label="Available Cash"
+              value={formatCurrency(overview?.availableCash ?? 0)}
+            />
+          </View>
 
       {/* Portfolio Performance Chart */}
       {history && history.length > 1 && (
@@ -178,6 +183,8 @@ export default function DashboardScreen() {
             </View>
           ))}
         </View>
+      )}
+        </>
       )}
 
       <View style={{ height: 32 }} />

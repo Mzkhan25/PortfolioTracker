@@ -7,7 +7,10 @@ import {
   Pressable,
   RefreshControl,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useTradeHistory, Trade } from "../../hooks/useTradeHistory";
+import { ErrorState } from "../../components/ErrorState";
+import { SkeletonTradeRow, Skeleton } from "../../components/Skeleton";
 
 type DateRange = "1M" | "3M" | "6M" | "1Y" | "ALL";
 type SortKey = "date" | "pnl";
@@ -76,7 +79,7 @@ export default function HistoryScreen() {
   const [sortBy, setSortBy] = useState<SortKey>("date");
 
   const minDate = getMinDate(dateRange);
-  const { data, isLoading, refetch, isRefetching } = useTradeHistory(page, 20, minDate);
+  const { data, isLoading, isError, refetch, isRefetching } = useTradeHistory(page, 20, minDate);
 
   const trades = data?.items || [];
   const sorted = [...trades].sort((a, b) => {
@@ -91,11 +94,21 @@ export default function HistoryScreen() {
     <View style={styles.container}>
       {/* Summary */}
       <View style={styles.summary}>
-        <Text style={styles.summaryLabel}>Realized P&L ({dateRange})</Text>
-        <Text style={[styles.summaryValue, isPositiveTotal ? styles.positive : styles.negative]}>
-          {isPositiveTotal ? "+" : ""}€{totalProfit.toFixed(2)}
-        </Text>
-        <Text style={styles.summaryCount}>{data?.total ?? 0} trades</Text>
+        {isLoading ? (
+          <>
+            <Skeleton width={120} height={13} />
+            <Skeleton width={160} height={28} style={{ marginTop: 6 }} />
+            <Skeleton width={60} height={12} style={{ marginTop: 6 }} />
+          </>
+        ) : (
+          <>
+            <Text style={styles.summaryLabel}>Realized P&L ({dateRange})</Text>
+            <Text style={[styles.summaryValue, isPositiveTotal ? styles.positive : styles.negative]}>
+              {isPositiveTotal ? "+" : ""}€{totalProfit.toFixed(2)}
+            </Text>
+            <Text style={styles.summaryCount}>{data?.total ?? 0} trades</Text>
+          </>
+        )}
       </View>
 
       {/* Date Range Filter */}
@@ -139,11 +152,23 @@ export default function HistoryScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#3b82f6" />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {isLoading ? "Loading trade history..." : "No trades in this period"}
-            </Text>
-          </View>
+          isLoading ? (
+            <View>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <SkeletonTradeRow key={i} />
+              ))}
+            </View>
+          ) : isError ? (
+            <ErrorState message="Failed to load trade history" onRetry={refetch} />
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="receipt-outline" size={48} color="#334155" />
+              <Text style={styles.emptyText}>No trades in this period</Text>
+              <Text style={styles.emptySubtext}>
+                Try expanding the date range above
+              </Text>
+            </View>
+          )
         }
         ListFooterComponent={
           data && data.totalPages > 1 ? (
@@ -214,7 +239,8 @@ const styles = StyleSheet.create({
   pageBtnDisabled: { opacity: 0.4 },
   pageText: { fontSize: 13, color: "#94a3b8", fontWeight: "500" },
   pageInfo: { fontSize: 13, color: "#64748b" },
-  emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 48 },
-  emptyText: { fontSize: 16, color: "#64748b" },
+  emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 48, paddingHorizontal: 32 },
+  emptyText: { fontSize: 16, color: "#64748b", marginTop: 12 },
+  emptySubtext: { fontSize: 13, color: "#475569", marginTop: 4, textAlign: "center" },
   emptyList: { flexGrow: 1 },
 });
