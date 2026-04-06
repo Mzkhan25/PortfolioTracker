@@ -61,3 +61,19 @@ export interface PortfolioSnapshot {
   fetchedAt: string;
   createdAt: string;
 }
+
+export interface TagPortfolioEntry {
+  tagId: string | null;
+  tagName: string;
+  tagColor: string | null;
+  totalValue: number;
+  totalInvested: number;
+  unrealizedPnl: number;
+  unrealizedPnlPercent: number;
+  allocationPercent: number;
+  positionCount: number;
+}
+
+export interface TagPortfolioBreakdown {
+  items: TagPortfolioEntry[];
+}

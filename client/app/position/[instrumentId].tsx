@@ -5,8 +5,10 @@ import { useCandles } from "../../hooks/useMarketData";
 import { PriceChart } from "../../components/PriceChart";
 import { PnLBadge } from "../../components/PnLBadge";
 import { PositionRow } from "../../components/PositionRow";
-import type { CandlePeriod } from "@portfolio-tracker/shared";
-import { useState } from "react";
+import type { CandlePeriod, Position } from "@portfolio-tracker/shared";
+import { useTags, useTagPosition, useUntagPosition } from "../../hooks/useTags";
+import { TagModal } from "../../components/TagModal";
+import { useState, useCallback } from "react";
 import { Pressable } from "react-native";
 
 const PERIODS: CandlePeriod[] = ["1D", "1W", "1M", "3M", "1Y"];
@@ -15,6 +17,23 @@ export default function PositionDetailScreen() {
   const { instrumentId } = useLocalSearchParams<{ instrumentId: string }>();
   const { data: grouped } = useGroupedPositions();
   const [period, setPeriod] = useState<CandlePeriod>("1M");
+  const { data: tags } = useTags();
+  const tagPosition = useTagPosition();
+  const untagPosition = useUntagPosition();
+  const [tagModalPosition, setTagModalPosition] = useState<Position | null>(null);
+
+  const handleToggleTag = useCallback(
+    (tagId: string, assigned: boolean) => {
+      if (!tagModalPosition) return;
+      if (assigned) {
+        untagPosition.mutate({ tagId, etoroPositionId: tagModalPosition.id });
+      } else {
+        tagPosition.mutate({ tagId, etoroPositionId: tagModalPosition.id });
+      }
+    },
+    [tagModalPosition]
+  );
+
   const { data: candles, isLoading: candlesLoading } = useCandles(instrumentId || "", period);
 
   const group = grouped?.find((g) => g.instrumentId === instrumentId);
@@ -101,16 +120,30 @@ export default function PositionDetailScreen() {
       </View>
 
       {/* Individual Positions */}
-      {group.positionCount > 1 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            Individual Positions ({group.positionCount})
-          </Text>
-          {group.positions.map((pos) => (
-            <PositionRow key={pos.id} position={pos} />
-          ))}
-        </View>
-      )}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>
+          Positions ({group.positionCount})
+        </Text>
+        {group.positions.map((pos) => (
+          <PositionRow
+            key={pos.id}
+            position={pos}
+            onTagPress={() => setTagModalPosition(pos)}
+          />
+        ))}
+      </View>
+
+      {/* Tag Assignment Modal */}
+      <TagModal
+        visible={!!tagModalPosition}
+        onClose={() => setTagModalPosition(null)}
+        tags={tags || []}
+        assignedTagIds={tagModalPosition?.tags?.map((t) => t.id) || []}
+        onToggleTag={handleToggleTag}
+        positionName={
+          tagModalPosition?.ticker || tagModalPosition?.instrumentName || ""
+        }
+      />
 
       <View style={{ height: 32 }} />
     </ScrollView>

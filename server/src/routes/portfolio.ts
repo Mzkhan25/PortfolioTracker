@@ -6,7 +6,7 @@ import { enrichPositions, enrichTags } from "../services/enrichment.js";
 import { setCache, buildCacheKey, tryCacheResponse } from "../services/cache.js";
 import { db } from "../db/index.js";
 import { portfolioSnapshots, positionTags } from "../db/schema.js";
-import type { PortfolioOverview, GroupedPosition } from "@portfolio-tracker/shared";
+import type { PortfolioOverview, GroupedPosition, TagPortfolioEntry, TagPortfolioBreakdown } from "@portfolio-tracker/shared";
 
 const router = Router();
 
@@ -122,6 +122,84 @@ router.get("/overview", async (req: Request, res: Response) => {
       cached: true,
       empty: true,
     });
+  }
+});
+
+router.get("/overview/by-tag", async (req: Request, res: Response) => {
+  const userId = req.auth!.userId;
+  const cacheKey = buildCacheKey(userId, "overview:by-tag");
+
+  if (tryCacheResponse(req, res, cacheKey)) return;
+
+  try {
+    const etoro = getEtoroService();
+    const { positions } = await etoro.getPortfolioPnl();
+
+    await enrichPositions(positions, etoro);
+    await enrichTags(positions, userId);
+
+    // Calculate total portfolio value for allocation percentages
+    const totalPortfolioValue = positions.reduce(
+      (s, p) => s + p.amount + p.unrealizedPnl,
+      0
+    );
+
+    // Group positions by tag — a position with multiple tags goes into each bucket
+    const tagBuckets = new Map<string | null, { tag: { id: string | null; name: string; color: string | null }; positions: typeof positions }>();
+
+    for (const pos of positions) {
+      const posTags = pos.tags || [];
+
+      if (posTags.length === 0) {
+        // Untagged bucket
+        const bucket = tagBuckets.get(null) || {
+          tag: { id: null, name: "Untagged", color: null },
+          positions: [],
+        };
+        bucket.positions.push(pos);
+        tagBuckets.set(null, bucket);
+      } else {
+        for (const tag of posTags) {
+          const bucket = tagBuckets.get(tag.id) || {
+            tag: { id: tag.id, name: tag.name, color: tag.color },
+            positions: [],
+          };
+          bucket.positions.push(pos);
+          tagBuckets.set(tag.id, bucket);
+        }
+      }
+    }
+
+    // Compute per-tag metrics
+    const items: TagPortfolioEntry[] = Array.from(tagBuckets.values()).map(
+      ({ tag, positions: bucketPositions }) => {
+        const totalInvested = bucketPositions.reduce((s, p) => s + p.amount, 0);
+        const totalPnl = bucketPositions.reduce((s, p) => s + p.unrealizedPnl, 0);
+        const totalValue = totalInvested + totalPnl;
+
+        return {
+          tagId: tag.id,
+          tagName: tag.name,
+          tagColor: tag.color,
+          totalValue,
+          totalInvested,
+          unrealizedPnl: totalPnl,
+          unrealizedPnlPercent: totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0,
+          allocationPercent: totalPortfolioValue > 0 ? (totalValue / totalPortfolioValue) * 100 : 0,
+          positionCount: bucketPositions.length,
+        };
+      }
+    );
+
+    // Sort by totalValue descending
+    items.sort((a, b) => b.totalValue - a.totalValue);
+
+    const result: TagPortfolioBreakdown = { items };
+    setCache(cacheKey, result, 60);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.warn("Failed to compute tag breakdown:", err instanceof Error ? err.message : err);
+    res.status(502).json({ success: false, error: "Failed to compute tag breakdown", statusCode: 502 });
   }
 });
 

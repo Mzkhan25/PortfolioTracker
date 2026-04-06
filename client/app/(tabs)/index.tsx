@@ -1,10 +1,13 @@
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions } from "react-native";
+import { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Dimensions, Pressable } from "react-native";
 import { PieChart, LineChart } from "react-native-chart-kit";
-import { usePortfolioOverview, useGroupedPositions, usePortfolioHistory } from "../../hooks/usePortfolio";
+import { usePortfolioOverview, useGroupedPositions, usePortfolioHistory, useTagBreakdown } from "../../hooks/usePortfolio";
 import { PortfolioCard } from "../../components/PortfolioCard";
 import { PnLBadge } from "../../components/PnLBadge";
 import { ErrorState } from "../../components/ErrorState";
 import { SkeletonDashboardHeader, SkeletonCard, SkeletonChart } from "../../components/Skeleton";
+import { useTags } from "../../hooks/useTags";
+import { TagChip } from "../../components/TagChip";
 
 const CHART_COLORS = [
   "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6",
@@ -16,18 +19,37 @@ function formatCurrency(value: number): string {
 }
 
 export default function DashboardScreen() {
-  const { data: overview, isLoading, isError, refetch, isRefetching } = usePortfolioOverview();
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+  const [allocationView, setAllocationView] = useState<"tag" | "instrument">("instrument");
+  const { data: overview, isLoading, isError, refetch, isRefetching } = usePortfolioOverview(selectedTagId ?? undefined);
   const { data: grouped } = useGroupedPositions();
   const { data: history } = usePortfolioHistory(30);
+  const { data: tags } = useTags();
+  const { data: tagBreakdown } = useTagBreakdown();
 
-  // Prepare pie chart data from grouped positions (one slice per stock)
-  const chartData = (grouped || [])
+  // Instrument allocation chart data (filtered by tag when selected)
+  const filteredGrouped = selectedTagId
+    ? (grouped || []).filter((g) => g.tags?.some((t) => t.id === selectedTagId))
+    : (grouped || []);
+
+  const instrumentChartData = filteredGrouped
     .sort((a, b) => (b.totalAmount + b.unrealizedPnl) - (a.totalAmount + a.unrealizedPnl))
     .slice(0, 8)
     .map((g, i) => ({
       name: g.ticker || g.instrumentName || `#${g.instrumentId}`,
       value: Math.max(g.totalAmount + g.unrealizedPnl, 0),
       color: CHART_COLORS[i % CHART_COLORS.length],
+      legendFontColor: "#94a3b8",
+      legendFontSize: 12,
+    }));
+
+  // Tag allocation chart data (always global view)
+  const TAG_UNTAGGED_COLOR = "#475569";
+  const tagChartData = (tagBreakdown?.items || [])
+    .map((entry, i) => ({
+      name: entry.tagName,
+      value: Math.max(entry.totalValue, 0),
+      color: entry.tagColor || (entry.tagId === null ? TAG_UNTAGGED_COLOR : CHART_COLORS[i % CHART_COLORS.length]),
       legendFontColor: "#94a3b8",
       legendFontSize: 12,
     }));
@@ -55,6 +77,34 @@ export default function DashboardScreen() {
       }
     >
       {isError && <ErrorState message="Failed to load portfolio data" onRetry={refetch} />}
+
+      {/* Tag Filter */}
+      {tags && tags.length > 0 && !isLoading && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tagBar}
+          contentContainerStyle={styles.tagBarContent}
+        >
+          <TagChip
+            name="All"
+            color="#64748b"
+            selected={!selectedTagId}
+            onPress={() => setSelectedTagId(null)}
+          />
+          {tags.map((tag) => (
+            <TagChip
+              key={tag.id}
+              name={tag.name}
+              color={tag.color}
+              selected={selectedTagId === tag.id}
+              onPress={() =>
+                setSelectedTagId(selectedTagId === tag.id ? null : tag.id)
+              }
+            />
+          ))}
+        </ScrollView>
+      )}
 
       {/* Portfolio Value Header */}
       {isLoading ? (
@@ -134,12 +184,34 @@ export default function DashboardScreen() {
       )}
 
       {/* Allocation Chart */}
-      {chartData.length > 0 && (
+      {(instrumentChartData.length > 0 || tagChartData.length > 0) && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Allocation</Text>
+          <View style={styles.allocationHeader}>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Allocation</Text>
+            {tags && tags.length > 0 && (
+              <View style={styles.toggleRow}>
+                <Pressable
+                  style={[styles.toggleBtn, allocationView === "instrument" && styles.toggleBtnActive]}
+                  onPress={() => setAllocationView("instrument")}
+                >
+                  <Text style={[styles.toggleText, allocationView === "instrument" && styles.toggleTextActive]}>
+                    By Stock
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.toggleBtn, allocationView === "tag" && styles.toggleBtnActive]}
+                  onPress={() => setAllocationView("tag")}
+                >
+                  <Text style={[styles.toggleText, allocationView === "tag" && styles.toggleTextActive]}>
+                    By Tag
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
           <View style={styles.chartContainer}>
             <PieChart
-              data={chartData}
+              data={allocationView === "tag" ? tagChartData : instrumentChartData}
               width={Dimensions.get("window").width - 32}
               height={180}
               chartConfig={{
@@ -259,5 +331,44 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#ef4444",
+  },
+  tagBar: {
+    maxHeight: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+  },
+  tagBarContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  allocationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  toggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: "#1e293b",
+  },
+  toggleBtnActive: {
+    backgroundColor: "#3b82f6",
+  },
+  toggleText: {
+    fontSize: 12,
+    color: "#94a3b8",
+    fontWeight: "500",
+  },
+  toggleTextActive: {
+    color: "#ffffff",
   },
 });

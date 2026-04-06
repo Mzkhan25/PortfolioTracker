@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import api from "../services/api";
-import type { PortfolioOverview, Position, GroupedPosition } from "@portfolio-tracker/shared";
+import type { PortfolioOverview, Position, GroupedPosition, TagPortfolioBreakdown } from "@portfolio-tracker/shared";
 
 const STALE_TIME = 60_000; // 60s — matches server cache TTL
 
@@ -52,5 +52,16 @@ export function usePortfolioHistory(days = 30) {
       return data.data;
     },
     staleTime: 300_000,
+  });
+}
+
+export function useTagBreakdown() {
+  return useQuery<TagPortfolioBreakdown>({
+    queryKey: ["portfolio", "overview", "by-tag"],
+    queryFn: async () => {
+      const { data } = await api.get("/portfolio/overview/by-tag");
+      return data.data;
+    },
+    staleTime: STALE_TIME,
   });
 }

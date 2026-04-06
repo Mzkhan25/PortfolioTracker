@@ -40,7 +40,8 @@ shared/           — TypeScript types shared between client and server
 - **Stock logos:** `imageUrl` field on Position/GroupedPosition, enriched from eToro instrument data (`images[0].uri`). Displayed in PositionRow and GroupedPositionRow.
 - **Position detail screen:** Modal at `/position/[instrumentId]` — shows price chart (with period selector), stats grid (invested, value, units, rates, allocation), and individual positions if grouped.
 - **Portfolio history chart:** `GET /portfolio/history?days=30` returns one snapshot per day from DB. LineChart on dashboard shows 30-day portfolio value trend.
-- **Tags:** User-defined tags on positions via `position_tags` join table. Portfolio overview supports `?tag=tagId` filter.
+- **Per-position tagging:** Tags are assigned per individual eToro position (not per instrument). Position detail screen (`/position/[instrumentId]`) always shows individual positions with tag buttons. TagModal reused for assignment.
+- **Tag-based dashboard analytics:** Dashboard has tag selector bar (filters header metrics via `?tag=tagId`) and allocation chart toggle ("By Stock" / "By Tag"). New endpoint `GET /portfolio/overview/by-tag` returns per-tag aggregation with allocation percentages. History chart and top movers stay global (unfiltered). Untagged positions shown as "Untagged" slice.
 - **JWT:** 7-day expiry for single-user convenience. Client auto-refreshes on 401 (skips refresh for /auth/refresh and /auth/login to prevent infinite loops).
 
 ## Database (PostgreSQL on Railway)

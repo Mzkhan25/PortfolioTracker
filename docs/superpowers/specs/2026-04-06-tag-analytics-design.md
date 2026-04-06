@@ -1,22 +1,50 @@
-# Tag-Based Portfolio Analytics
+# Tag-Based Portfolio Analytics + Per-Position Tagging UX
 
 ## Overview
 
-Extend the Dashboard tab with tag-based filtering and allocation views. Users can see portfolio metrics filtered by tag and toggle the allocation chart between "By Tag" and "By Instrument" views.
+Two related improvements:
+1. **Per-position tagging UX** — Make it easy to tag individual positions within a stock from the position detail screen
+2. **Tag-based dashboard analytics** — Extend the Dashboard with tag filtering and a "By Tag" allocation view
 
 ## Decisions
 
-- **Where:** Extension of existing Dashboard, not a new tab/screen
-- **Tag selector:** Horizontal chip bar on Dashboard (same pattern as Positions tab filter)
-- **Allocation toggle:** "By Tag" vs "By Instrument" toggle above pie chart
-- **Tag filter scope:** Affects header metrics (value, P&L) and allocation chart only
+- **Tagging UX:** Position detail screen (`/position/[instrumentId]`) gets tag controls on each individual position row
+- **Always show individual positions:** Remove the `positionCount > 1` guard — even a stock with 1 position shows the individual positions section
+- **Dashboard extension:** Tag selector bar + allocation chart toggle ("By Tag" / "By Instrument")
+- **Tag filter scope:** Affects header metrics (value, P&L) and "By Instrument" allocation chart only
 - **Unaffected by filter:** Portfolio history chart (30d), Top Gainers/Losers, Equity/Cash cards
 - **Untagged positions:** Shown as "Untagged" slice (gray) in tag allocation view — portfolio always sums to 100%
 - **Multi-tag positions:** A position tagged with both "Growth" and "Tech" contributes to both tag totals (allocation can exceed 100% in edge cases — acceptable for a personal dashboard)
 
-## API
+## Part 1: Per-Position Tagging UX
 
-### New Endpoint: `GET /portfolio/overview/by-tag`
+### Position Detail Screen (`client/app/position/[instrumentId].tsx`)
+
+**Changes:**
+- Remove the `group.positionCount > 1` condition — always show the "Individual Positions" section
+- Add a tag icon button to each `PositionRow` — tapping it opens `TagModal` for that specific position
+- Add `TagModal` to the position detail screen (import + state management)
+- Section title changes to "Positions (N)" for consistency
+
+### PositionRow (`client/components/PositionRow.tsx`)
+
+**Changes:**
+- Add optional `onTagPress` callback prop
+- When `onTagPress` is provided, render a small tag icon button (Ionicons `pricetag-outline`) in the bottom row
+- Existing tag chips continue to display below the row
+
+### Files Changed (Part 1)
+
+| File | Change |
+|------|--------|
+| `client/app/position/[instrumentId].tsx` | Add TagModal, tag button handler, always show positions section |
+| `client/components/PositionRow.tsx` | Add `onTagPress` prop, render tag icon button |
+
+## Part 2: Tag-Based Dashboard Analytics
+
+### API
+
+#### New Endpoint: `GET /portfolio/overview/by-tag`
 
 Returns per-tag portfolio aggregations.
 
@@ -47,11 +75,11 @@ interface TagPortfolioEntry {
 4. For each tag bucket: sum amounts, P&L, compute percentages
 5. Sort by `totalValue` descending
 
-### Existing Endpoint: `GET /portfolio/overview?tag=tagId`
+#### Existing Endpoint: `GET /portfolio/overview?tag=tagId`
 
 Already works — filters positions to a specific tag, recalculates overview. No changes needed.
 
-## Shared Types
+### Shared Types
 
 Add to `shared/types/portfolio.ts`:
 
@@ -73,8 +101,6 @@ export interface TagPortfolioBreakdown {
 }
 ```
 
-## Client Changes
-
 ### Dashboard (`client/app/(tabs)/index.tsx`)
 
 **New state:**
@@ -82,8 +108,8 @@ export interface TagPortfolioBreakdown {
 - `allocationView: "tag" | "instrument"` — which pie chart view is active
 
 **New UI elements:**
-1. **Tag selector bar** — below header, horizontal scroll with `TagChip` components. "All" chip + one per user tag.
-2. **Allocation toggle** — two buttons above pie chart: "By Tag" / "By Instrument"
+1. **Tag selector bar** — below header, horizontal scroll with `TagChip` components. "All" chip + one per user tag. Hidden when no tags exist.
+2. **Allocation toggle** — two buttons above pie chart: "By Tag" / "By Instrument". Hidden when no tags exist.
 
 **Behavior:**
 - Selecting a tag sets `selectedTagId` → `usePortfolioOverview(tagId)` refetches with filter → header metrics update
@@ -103,7 +129,7 @@ Add handler for `GET /portfolio/overview/by-tag`:
 - Group by tag, compute aggregations
 - Return `TagPortfolioBreakdown`
 
-## Files Changed
+### Files Changed (Part 2)
 
 | File | Change |
 |------|--------|
@@ -114,15 +140,16 @@ Add handler for `GET /portfolio/overview/by-tag`:
 
 ## Files NOT Changed
 
-- DB schema (no migrations)
-- Tag management (TagModal, TagManager, tags routes)
+- DB schema (no migrations needed)
+- Tag management backend (tags routes — existing CRUD + assign/unassign work as-is)
+- TagModal, TagManager, TagChip components (reused, not modified)
 - Other tabs (Positions, History, Market)
 - PriceChart, Skeleton, ErrorState components
-- Position detail screen
 
 ## Edge Cases
 
-- **No tags exist:** Tag selector bar hidden, "By Tag" toggle disabled or hidden, dashboard behaves as today
+- **No tags exist:** Tag selector bar and "By Tag" toggle hidden on dashboard. Position detail still shows positions section but tag buttons have no effect until tags are created.
 - **All positions untagged:** "By Tag" view shows single "Untagged" slice at 100%
 - **Position with multiple tags:** Counted in each tag's totals — allocation percentages may sum > 100%, which is acceptable
 - **Tag deleted while filtered:** `selectedTagId` no longer matches any tag — fall back to "All"
+- **Single position stock:** Individual positions section still shown with tag button

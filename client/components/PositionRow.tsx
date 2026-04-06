@@ -1,13 +1,15 @@
 import { View, Text, StyleSheet, Pressable, Image } from "react-native";
 import type { Position } from "@portfolio-tracker/shared";
+import { Ionicons } from "@expo/vector-icons";
 import { TagChip } from "./TagChip";
 
 interface PositionRowProps {
   position: Position;
   onPress?: () => void;
+  onTagPress?: () => void;
 }
 
-export function PositionRow({ position, onPress }: PositionRowProps) {
+export function PositionRow({ position, onPress, onTagPress }: PositionRowProps) {
   const isPositive = position.unrealizedPnl >= 0;
   const currentValue = position.amount + position.unrealizedPnl;
 
@@ -41,9 +43,16 @@ export function PositionRow({ position, onPress }: PositionRowProps) {
         <Text style={styles.meta}>
           {position.units.toFixed(2)} units @ €{position.openRate.toFixed(2)}
         </Text>
-        <Text style={styles.allocation}>
-          {position.allocationPercent.toFixed(1)}%
-        </Text>
+        <View style={styles.bottomRight}>
+          {onTagPress && (
+            <Pressable onPress={onTagPress} style={styles.tagButton}>
+              <Ionicons name="pricetag-outline" size={14} color="#94a3b8" />
+            </Pressable>
+          )}
+          <Text style={styles.allocation}>
+            {position.allocationPercent.toFixed(1)}%
+          </Text>
+        </View>
       </View>
 
       {position.tags && position.tags.length > 0 && (
@@ -128,6 +137,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#64748b",
     fontWeight: "500",
+  },
+  bottomRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  tagButton: {
+    padding: 4,
   },
   tagRow: {
     flexDirection: "row",
