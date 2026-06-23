@@ -40,9 +40,9 @@ function TradeRow({ trade }: { trade: Trade }) {
             <Text style={styles.tradeTicker}>
               {trade.ticker || `#${trade.instrumentId}`}
             </Text>
-            <View style={[styles.directionBadge, trade.isBuy ? styles.buyBadge : styles.sellBadge]}>
-              <Text style={styles.directionText}>{trade.isBuy ? "BUY" : "SELL"}</Text>
-            </View>
+            <Text style={[styles.directionText, trade.isBuy ? styles.buyText : styles.sellText]}>
+              {trade.isBuy ? "Buy" : "Sell"}
+            </Text>
           </View>
           <Text style={styles.tradeName} numberOfLines={1}>
             {trade.instrumentName || "Unknown"}
@@ -96,17 +96,21 @@ export default function HistoryScreen() {
       <View style={styles.summary}>
         {isLoading ? (
           <>
-            <Skeleton width={120} height={13} />
-            <Skeleton width={160} height={28} style={{ marginTop: 6 }} />
-            <Skeleton width={60} height={12} style={{ marginTop: 6 }} />
+            <View>
+              <Skeleton width={120} height={13} />
+              <Skeleton width={60} height={12} style={{ marginTop: 6 }} />
+            </View>
+            <Skeleton width={120} height={22} />
           </>
         ) : (
           <>
-            <Text style={styles.summaryLabel}>Realized P&L ({dateRange})</Text>
+            <View>
+              <Text style={styles.summaryLabel}>Realized P&L ({dateRange})</Text>
+              <Text style={styles.summaryCount}>{data?.total ?? 0} trades</Text>
+            </View>
             <Text style={[styles.summaryValue, isPositiveTotal ? styles.positive : styles.negative]}>
               {isPositiveTotal ? "+" : ""}€{totalProfit.toFixed(2)}
             </Text>
-            <Text style={styles.summaryCount}>{data?.total ?? 0} trades</Text>
           </>
         )}
       </View>
@@ -201,41 +205,40 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f172a" },
-  summary: { alignItems: "center", paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#1e293b" },
-  summaryLabel: { fontSize: 13, color: "#94a3b8" },
-  summaryValue: { fontSize: 28, fontWeight: "bold", marginTop: 4 },
-  summaryCount: { fontSize: 12, color: "#64748b", marginTop: 4 },
+  summary: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#1e293b" },
+  summaryLabel: { fontSize: 12, color: "#64748b" },
+  summaryValue: { fontSize: 22, fontWeight: "700", marginTop: 2 },
+  summaryCount: { fontSize: 12, color: "#64748b" },
   positive: { color: "#22c55e" },
   negative: { color: "#ef4444" },
   filterRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
-  filterBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: "#1e293b" },
-  filterBtnActive: { backgroundColor: "#3b82f6" },
-  filterText: { fontSize: 13, color: "#94a3b8", fontWeight: "500" },
+  filterBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: "#475569", backgroundColor: "transparent" },
+  filterBtnActive: { borderColor: "#ffffff", backgroundColor: "transparent" },
+  filterText: { fontSize: 13, color: "#64748b", fontWeight: "500" },
   filterTextActive: { color: "#ffffff" },
   sortRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
   sortLabel: { fontSize: 13, color: "#64748b" },
-  sortBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: "#1e293b" },
-  sortBtnActive: { backgroundColor: "#3b82f6" },
-  sortText: { fontSize: 12, color: "#94a3b8", fontWeight: "500" },
+  sortBtn: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: "#475569", backgroundColor: "transparent" },
+  sortBtnActive: { borderColor: "#ffffff", backgroundColor: "transparent" },
+  sortText: { fontSize: 12, color: "#64748b", fontWeight: "500" },
   sortTextActive: { color: "#ffffff" },
-  tradeRow: { backgroundColor: "#1e293b", borderRadius: 12, padding: 14, marginHorizontal: 16, marginBottom: 8 },
+  tradeRow: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#1e293b" },
   tradeTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   tradeLeft: { flex: 1, marginRight: 12 },
   tradeHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  tradeTicker: { fontSize: 16, fontWeight: "600", color: "#ffffff" },
-  directionBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  buyBadge: { backgroundColor: "rgba(34, 197, 94, 0.2)" },
-  sellBadge: { backgroundColor: "rgba(239, 68, 68, 0.2)" },
-  directionText: { fontSize: 10, fontWeight: "700", color: "#94a3b8" },
-  tradeName: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
+  tradeTicker: { fontSize: 15, fontWeight: "600", color: "#ffffff" },
+  directionText: { fontSize: 12, fontWeight: "600" },
+  buyText: { color: "#22c55e" },
+  sellText: { color: "#ef4444" },
+  tradeName: { fontSize: 12, color: "#64748b", marginTop: 2 },
   tradeRight: { alignItems: "flex-end" },
-  tradeProfit: { fontSize: 18, fontWeight: "700" },
-  tradeBottom: { flexDirection: "row", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#334155" },
-  tradeMeta: { fontSize: 12, color: "#64748b" },
-  tradeDetails: { flexDirection: "row", gap: 12, marginTop: 6 },
-  tradeDetail: { fontSize: 11, color: "#475569" },
+  tradeProfit: { fontSize: 16, fontWeight: "700" },
+  tradeBottom: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
+  tradeMeta: { fontSize: 11, color: "#475569" },
+  tradeDetails: { flexDirection: "row", gap: 12, marginTop: 4 },
+  tradeDetail: { fontSize: 11, color: "#334155" },
   pagination: { flexDirection: "row", justifyContent: "center", alignItems: "center", paddingVertical: 16, gap: 16 },
-  pageBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: "#1e293b" },
+  pageBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: "#475569", backgroundColor: "transparent" },
   pageBtnDisabled: { opacity: 0.4 },
   pageText: { fontSize: 13, color: "#94a3b8", fontWeight: "500" },
   pageInfo: { fontSize: 13, color: "#64748b" },

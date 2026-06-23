@@ -1,16 +1,14 @@
-import { View, Text, StyleSheet, ScrollView, Image } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Image, Pressable } from "react-native";
 import { useLocalSearchParams, Stack } from "expo-router";
 import { useGroupedPositions } from "../../hooks/usePortfolio";
 import { useCandles } from "../../hooks/useMarketData";
-import { PriceChart } from "../../components/PriceChart";
-import { PnLBadge } from "../../components/PnLBadge";
+import { PortfolioChart } from "../../components/PortfolioChart";
 import type { CandlePeriod, Position } from "@portfolio-tracker/shared";
 import { Ionicons } from "@expo/vector-icons";
 import { TagChip } from "../../components/TagChip";
 import { useTags, useTagPosition, useUntagPosition } from "../../hooks/useTags";
 import { TagModal } from "../../components/TagModal";
 import { useState, useCallback } from "react";
-import { Pressable } from "react-native";
 
 const PERIODS: CandlePeriod[] = ["1D", "1W", "1M", "3M", "1Y"];
 
@@ -65,31 +63,72 @@ export default function PositionDetailScreen() {
   }
 
   const currentValue = group.totalAmount + group.unrealizedPnl;
+  const isPositive = group.unrealizedPnl >= 0;
+  const pnlSign = isPositive ? "+" : "";
+
+  // Transform candle data for PortfolioChart (gifted-charts format)
+  const candleChartData = (candles || []).map((c) => ({
+    value: c.close,
+  }));
 
   return (
     <ScrollView style={styles.container}>
       <Stack.Screen options={{ title: group.ticker || group.instrumentName }} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        {group.imageUrl && (
-          <Image source={{ uri: group.imageUrl }} style={styles.logo} />
-        )}
-        <Text style={styles.ticker}>{group.ticker}</Text>
-        <Text style={styles.name}>{group.instrumentName}</Text>
-        <Text style={styles.price}>
-          €{currentValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-        </Text>
-        <PnLBadge
-          value={group.unrealizedPnl}
-          percent={group.unrealizedPnlPercent}
-          size="lg"
-        />
+      {/* Compact Instrument Header */}
+      <View style={styles.instrumentHeader}>
+        {/* Row 1: Logo + Ticker/Name | Price + P/L% */}
+        <View style={styles.headerRow1}>
+          <View style={styles.logoNameBlock}>
+            {group.imageUrl ? (
+              <Image source={{ uri: group.imageUrl }} style={styles.logo} />
+            ) : (
+              <View style={styles.logoPlaceholder}>
+                <Text style={styles.logoPlaceholderText}>
+                  {(group.ticker || group.instrumentName || "?")[0].toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={styles.nameBlock}>
+              <View style={styles.tickerRow}>
+                <Text style={styles.ticker}>{group.ticker}</Text>
+                {group.instrumentName ? (
+                  <Text style={styles.instrumentName} numberOfLines={1}>
+                    {" • "}{group.instrumentName}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={styles.priceRow}>
+                <Text style={[styles.currentPrice, isPositive ? styles.positive : styles.negative]}>
+                  ${group.currentRate.toFixed(2)}
+                </Text>
+                <Text style={[styles.pnlPercent, isPositive ? styles.positive : styles.negative]}>
+                  {" "}{pnlSign}{group.unrealizedPnlPercent.toFixed(2)}%
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Row 2: Units @ Avg | Invested + Net Value | P/L */}
+        <View style={styles.headerRow2}>
+          <View style={styles.statsBlock}>
+            <Text style={styles.statsValue}>
+              {group.totalUnits.toFixed(4)} Units @ ${group.averageOpenRate.toFixed(2)}
+            </Text>
+            <Text style={styles.statsLabel}>Invested €{group.totalAmount.toFixed(2)}</Text>
+          </View>
+          <View style={styles.statsBlockEnd}>
+            <Text style={styles.netValue}>€{currentValue.toFixed(2)}</Text>
+            <Text style={[styles.pnlValue, isPositive ? styles.positive : styles.negative]}>
+              {pnlSign}€{group.unrealizedPnl.toFixed(2)} ({pnlSign}{group.unrealizedPnlPercent.toFixed(2)}%)
+            </Text>
+          </View>
+        </View>
       </View>
 
-      {/* Chart */}
+      {/* Chart with Period Selector */}
       <View style={styles.section}>
-        <PriceChart candles={candles || []} isLoading={candlesLoading} />
         <View style={styles.periodRow}>
           {PERIODS.map((p) => (
             <Pressable
@@ -103,37 +142,7 @@ export default function PositionDetailScreen() {
             </Pressable>
           ))}
         </View>
-      </View>
-
-      {/* Stats */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Details</Text>
-        <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Invested</Text>
-            <Text style={styles.statValue}>€{group.totalAmount.toFixed(2)}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Current Value</Text>
-            <Text style={styles.statValue}>€{currentValue.toFixed(2)}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Units</Text>
-            <Text style={styles.statValue}>{group.totalUnits.toFixed(4)}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Avg Open Rate</Text>
-            <Text style={styles.statValue}>${group.averageOpenRate.toFixed(2)}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Current Rate</Text>
-            <Text style={styles.statValue}>${group.currentRate.toFixed(2)}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Allocation</Text>
-            <Text style={styles.statValue}>{group.allocationPercent.toFixed(1)}%</Text>
-          </View>
-        </View>
+        <PortfolioChart data={candleChartData} isLoading={candlesLoading} height={200} showYAxis={false} />
       </View>
 
       {/* Positions Table */}
@@ -153,7 +162,7 @@ export default function PositionDetailScreen() {
 
         {/* Table Rows */}
         {group.positions.map((pos) => {
-          const isPositive = pos.unrealizedPnl >= 0;
+          const posIsPositive = pos.unrealizedPnl >= 0;
           const openDateStr = pos.openDate
             ? new Date(pos.openDate).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "2-digit" })
             : "--";
@@ -201,10 +210,10 @@ export default function PositionDetailScreen() {
                 style={[
                   styles.tablePnl,
                   { flex: 1.2, textAlign: "right" },
-                  isPositive ? styles.positive : styles.negative,
+                  posIsPositive ? styles.positive : styles.negative,
                 ]}
               >
-                {isPositive ? "+" : ""}€{pos.unrealizedPnl.toFixed(2)}
+                {posIsPositive ? "+" : ""}€{pos.unrealizedPnl.toFixed(2)}
               </Text>
 
               {/* Tag icon */}
@@ -238,32 +247,120 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0f172a",
   },
-  header: {
+
+  // Instrument Header
+  instrumentHeader: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+    gap: 12,
+  },
+  headerRow1: {
+    flexDirection: "row",
     alignItems: "center",
-    padding: 24,
-    gap: 6,
+    justifyContent: "space-between",
+  },
+  logoNameBlock: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
   },
   logo: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginBottom: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  logoPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#334155",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoPlaceholderText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#94a3b8",
+  },
+  nameBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  tickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
   ticker: {
-    fontSize: 24,
+    fontSize: 15,
     fontWeight: "700",
     color: "#ffffff",
   },
-  name: {
-    fontSize: 14,
+  instrumentName: {
+    fontSize: 13,
     color: "#94a3b8",
+    flexShrink: 1,
   },
-  price: {
-    fontSize: 32,
-    fontWeight: "bold",
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  currentPrice: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  pnlPercent: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+
+  // Row 2 stats
+  headerRow2: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  statsBlock: {
+    gap: 2,
+  },
+  statsValue: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#e2e8f0",
+  },
+  statsLabel: {
+    fontSize: 11,
+    color: "#64748b",
+  },
+  statsBlockEnd: {
+    alignItems: "flex-end",
+    gap: 2,
+  },
+  netValue: {
+    fontSize: 15,
+    fontWeight: "700",
     color: "#ffffff",
-    marginTop: 8,
   },
+  pnlValue: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+
+  // Shared color
+  positive: {
+    color: "#22c55e",
+  },
+  negative: {
+    color: "#ef4444",
+  },
+
+  // Chart section
   section: {
     marginTop: 16,
     paddingHorizontal: 16,
@@ -277,17 +374,18 @@ const styles = StyleSheet.create({
   periodRow: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 8,
-    marginTop: 12,
+    gap: 6,
+    marginBottom: 12,
   },
   periodBtn: {
     paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: "#1e293b",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#475569",
   },
   periodBtnActive: {
-    backgroundColor: "#3b82f6",
+    borderColor: "#ffffff",
   },
   periodText: {
     fontSize: 13,
@@ -297,27 +395,8 @@ const styles = StyleSheet.create({
   periodTextActive: {
     color: "#ffffff",
   },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  statItem: {
-    width: "48%",
-    backgroundColor: "#1e293b",
-    borderRadius: 10,
-    padding: 12,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: "#64748b",
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#ffffff",
-  },
+
+  // Table
   tableHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -387,12 +466,6 @@ const styles = StyleSheet.create({
   tablePnl: {
     fontSize: 13,
     fontWeight: "600",
-  },
-  positive: {
-    color: "#22c55e",
-  },
-  negative: {
-    color: "#ef4444",
   },
   tagIconCell: {
     width: 28,

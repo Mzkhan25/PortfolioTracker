@@ -11,7 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { CandlePeriod } from "@portfolio-tracker/shared";
 import { usePositions } from "../../hooks/usePortfolio";
 import { useCandles, useRates } from "../../hooks/useMarketData";
-import { PriceChart } from "../../components/PriceChart";
+import { PortfolioChart } from "../../components/PortfolioChart";
 import { ErrorState } from "../../components/ErrorState";
 import { SkeletonPriceHeader, SkeletonChart } from "../../components/Skeleton";
 
@@ -110,7 +110,10 @@ export default function MarketScreen() {
           </View>
 
           {/* Chart */}
-          <PriceChart candles={candles || []} isLoading={candlesLoading} />
+          <PortfolioChart
+            data={(candles || []).map((c) => ({ value: c.close }))}
+            isLoading={candlesLoading}
+          />
 
           {/* Period Selector */}
           <View style={styles.periodRow}>
@@ -177,12 +180,12 @@ const styles = StyleSheet.create({
   positive: { color: "#22c55e" },
   negative: { color: "#ef4444" },
   periodRow: { flexDirection: "row", justifyContent: "center", paddingVertical: 16, gap: 8 },
-  periodBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: "#1e293b" },
-  periodBtnActive: { backgroundColor: "#3b82f6" },
-  periodText: { fontSize: 13, fontWeight: "600", color: "#94a3b8" },
+  periodBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: "#475569", backgroundColor: "transparent" },
+  periodBtnActive: { borderColor: "#ffffff", backgroundColor: "transparent" },
+  periodText: { fontSize: 13, fontWeight: "600", color: "#64748b" },
   periodTextActive: { color: "#ffffff" },
-  rateDetails: { marginHorizontal: 16, backgroundColor: "#1e293b", borderRadius: 12, padding: 16 },
-  rateRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
+  rateDetails: { marginHorizontal: 16 },
+  rateRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#1e293b" },
   rateLabel: { fontSize: 14, color: "#94a3b8" },
   rateValue: { fontSize: 14, fontWeight: "600", color: "#ffffff" },
   emptyContainer: { alignItems: "center", justifyContent: "center", paddingVertical: 48, paddingHorizontal: 32 },
