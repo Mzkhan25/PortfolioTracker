@@ -31,6 +31,9 @@ jobs:
       - name: Copy index.html to 404.html
         run: cp client/dist/index.html client/dist/404.html
 
+      - name: Add .nojekyll to disable Jekyll processing
+        run: touch client/dist/.nojekyll
+
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
