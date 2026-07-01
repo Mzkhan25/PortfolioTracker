@@ -1,6 +1,5 @@
 import axios from "axios";
-import { Platform } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "../utils/secureStore";
 
 function getBaseUrl(): string {
   if (!__DEV__) return "https://portfoliotracker-production-0a4b.up.railway.app";
@@ -60,25 +59,14 @@ api.interceptors.response.use(
 );
 
 async function getToken(): Promise<string | null> {
-  if (Platform.OS === "web") {
-    return localStorage.getItem("jwt_token");
-  }
   return SecureStore.getItemAsync("jwt_token");
 }
 
 async function saveToken(token: string): Promise<void> {
-  if (Platform.OS === "web") {
-    localStorage.setItem("jwt_token", token);
-    return;
-  }
   await SecureStore.setItemAsync("jwt_token", token);
 }
 
 async function clearToken(): Promise<void> {
-  if (Platform.OS === "web") {
-    localStorage.removeItem("jwt_token");
-    return;
-  }
   await SecureStore.deleteItemAsync("jwt_token");
 }
 
