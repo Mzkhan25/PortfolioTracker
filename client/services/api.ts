@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 function getBaseUrl(): string {
-  if (!__DEV__) return "https://portfolio-trackerserver-production.up.railway.app";
+  if (!__DEV__) return "https://portfoliotracker-production-0a4b.up.railway.app";
   // Web and iOS simulator can use localhost
   if (Platform.OS === "web" || Platform.OS === "ios") return "http://localhost:3000";
   // Android emulator maps 10.0.2.2 to host machine's localhost
