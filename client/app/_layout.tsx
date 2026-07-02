@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Stack, router, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -49,19 +50,21 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <StatusBar style="light" />
-        <AuthGate>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="position/[instrumentId]"
-              options={{ presentation: "modal", headerShown: true, headerStyle: { backgroundColor: "#0f172a" }, headerTintColor: "#fff", title: "Position Detail" }}
-            />
-          </Stack>
-        </AuthGate>
-      </QueryClientProvider>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <StatusBar style="light" />
+          <AuthGate>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="position/[instrumentId]"
+                options={{ presentation: "modal", headerShown: true, headerStyle: { backgroundColor: "#0f172a" }, headerTintColor: "#fff", title: "Position Detail" }}
+              />
+            </Stack>
+          </AuthGate>
+        </QueryClientProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

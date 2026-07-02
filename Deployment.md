@@ -1,6 +1,6 @@
 # Deployment Status
 
-Last updated: 2026-07-01
+Last updated: 2026-07-02
 
 ## Infrastructure
 
@@ -67,27 +67,36 @@ Both services are on Railway, connected to the GitHub repo (`Mzkhan25/PortfolioT
 
 ---
 
-## Current Client Error
+## `Module implementation must be a class` — RESOLVED (2026-07-02)
 
-```
-Error: Module implementation must be a class
-    registerWebModule entry-*.js:622
-```
+The previous session's theory (blamed `expo-secure-store`, added a metro resolver shim) was **wrong** — verified by reproducing the crash locally in headless Chromium against the actual production build (`npx expo export --platform web` + `serve` + Playwright). The SecureStore shim is harmless but was never the cause.
 
-Occurs at app startup in the browser. The metro config fix (item 6 above) should resolve it — but needs a redeploy and verification.
+**Actual root cause:** dependency version drift, in two parts.
 
-If the error persists after the metro config fix, the next module to check is `expo-linear-gradient`. It's installed in `client/package.json` but **not imported anywhere in the codebase** — it may be getting auto-linked and also failing `registerWebModule`. If so, either:
-- Remove it from `client/package.json` entirely (if unused), or
-- Add another entry to the metro config resolver for `ExpoLinearGradient.web.js`
+1. **`@expo/vector-icons` was on `^14.0.0`**, which let npm install `14.1.0` instead of the SDK-52-expected `~14.0.4`. `14.1.0` pulls in `expo-font@55.0.4` (built for a much newer Expo SDK), which calls `registerWebModule()` with an API shape (plain object + explicit name string) that our installed `expo-modules-core@2.2.3` (SDK 52) doesn't support — its `registerWebModule` only checks `moduleImplementation.name`, sees an anonymous function, and throws. This is what actually produced the `entry.js:622` crash — the failing module was `ExpoFontLoader`, not SecureStore.
+   - Fix: pinned `@expo/vector-icons` to `~14.0.4` and added `expo-font@~13.0.4` as an explicit direct dependency of `client/package.json` (it wasn't declared at all — vector-icons expects the host app to provide it — so npm had nowhere reachable to hoist a shared copy).
 
-To find all modules being auto-registered, look for `ExpoModulesProvider` in the Metro bundle or run:
-```bash
-cat node_modules/expo-modules-core/build/web/ExpoModulesProvider.web.js
-```
+2. Fixing #1 surfaced a second, previously-masked crash: `No safe area value available. Make sure you are rendering <SafeAreaProvider>`. The app never wrapped its root in `<SafeAreaProvider>`. This was tolerated under `react-native-safe-area-context@4.x` (silent zero-inset fallback), but `expo-router`'s transitive `@react-navigation/*` dependencies float on `^7.x` and now require `safe-area-context@5.x`, which hard-throws without a Provider. Since `client/package.json` also pinned `react-native-safe-area-context` down to `4.12.0` (per `expo install --fix`'s SDK-52 recommendation), two incompatible copies of the package coexisted in the tree — a Provider from one version's Context can't satisfy a Consumer from the other.
+   - Fix: bumped `react-native-safe-area-context` to `^5.0.0` (matching what `@react-navigation` already pulls transitively, so there's exactly one deduped copy) and added `<SafeAreaProvider>` around the root layout in `client/app/_layout.tsx`.
+
+**Verified:** rebuilt the production bundle, served it locally, and drove it with headless Chromium (Playwright) — no more `registerWebModule`/safe-area crashes, login screen renders correctly. Remaining console noise in local testing (CORS errors) is expected — `localhost` isn't in Railway's `CORS_ORIGIN` allowlist; this won't occur when served from the actual Railway domain.
+
+**Debugging note:** don't trust an unverified fix noted in this file at face value — reproduce first. `npx expo export --platform web` + `npx serve -s dist` + a headless browser (Playwright) is the fastest way to catch web-only runtime crashes that `tsc`/tests won't surface, since they only manifest when Expo's web module-registration code actually executes in a browser.
 
 ---
 
-## Files Changed This Session
+## Files Changed This Session (2026-07-02)
+
+| File | Change |
+|---|---|
+| `client/package.json` | `@expo/vector-icons` pinned to `~14.0.4`; added `expo-font@~13.0.4`; `react-native-safe-area-context` changed to `^5.0.0`; `react-native` bumped to `0.76.9` |
+| `client/app.json` | Added `expo-font` to `plugins` (auto-added by `expo install`) |
+| `client/app/_layout.tsx` | Wrapped root layout in `<SafeAreaProvider>` |
+| `package-lock.json` | Regenerated after dependency fixes |
+
+---
+
+## Files Changed Previous Session (2026-07-01)
 
 | File | Change |
 |---|---|
@@ -101,3 +110,5 @@ cat node_modules/expo-modules-core/build/web/ExpoModulesProvider.web.js
 | `client/utils/secureStore.web.ts` | Created — localStorage implementation for web |
 | `client/utils/ExpoSecureStoreWebStub.js` | Created — no-op NativeModule class for metro shim |
 | `client/metro.config.js` | Created — redirects ExpoSecureStore.web.js to stub on web platform |
+
+> Note: `package.json`'s root `dependencies` still listed `expo-linear-gradient` as of 2026-07-02 despite this entry claiming it was removed — it was not actually the cause of the crash (the module isn't imported anywhere and never appears in the web bundle), so it was left as-is rather than risk an unrelated change. Worth cleaning up separately since it's dead weight in the server's Docker image.
